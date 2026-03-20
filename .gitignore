@@ -6,3 +6,4 @@
 */build/
 **/build/
 *.iml
+/.android-sdk/

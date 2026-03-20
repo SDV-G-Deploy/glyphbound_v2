@@ -79,6 +79,31 @@ Android ASCII-like roguelite prototype with deterministic procedural generation 
 ./gradlew :core:procgen:test --tests "*property_*"
 ```
 
+## Codespaces / devcontainer Android SDK setup
+- Devcontainer sets `ANDROID_SDK_ROOT`/`ANDROID_HOME` to `${containerWorkspaceFolder}/.android-sdk`.
+- On container create, these scripts run automatically:
+  - `.devcontainer/scripts/setup-android-sdk.sh` — installs Android command-line tools + platform/build-tools for API 34.
+  - `.devcontainer/scripts/ensure-local-properties.sh` — writes `local.properties` with `sdk.dir=<workspace>/.android-sdk`.
+- This keeps `local.properties` out of git while ensuring AGP always sees a valid SDK path in Codespaces.
+
+If you need to re-run manually:
+```bash
+bash .devcontainer/scripts/setup-android-sdk.sh
+bash .devcontainer/scripts/ensure-local-properties.sh
+./gradlew :app:compileDebugKotlin
+```
+
+If your runner (e.g. Codex shell) does **not** execute devcontainer `postCreateCommand`, run a one-shot bootstrap first:
+```bash
+bash scripts/bootstrap-android-env.sh
+./gradlew :app:assembleDebug
+```
+
+Or as a single command:
+```bash
+bash scripts/bootstrap-android-env.sh && ./gradlew :app:assembleDebug
+```
+
 ## Release lane (existing flow, unchanged)
 Workflow: `.github/workflows/android-release.yml`
 
