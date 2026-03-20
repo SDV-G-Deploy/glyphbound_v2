@@ -48,7 +48,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingBottom="6dp"
-        android:text="@:you S:start E:exit #:wall .:floor ~:risk o:oil w:water *:spark f:fire"
+        android:text="@:you S:start E:exit #:wall .:floor ~:risk o:oil w:water *:spark f:fire ^:fire-zone !:shock-zone &:mixed"
         android:textSize="12sp" />
 
     <LinearLayout

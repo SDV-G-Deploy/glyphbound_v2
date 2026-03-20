@@ -54,7 +54,7 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { ui ->
-                    val reproKey = "${ui.seed}:${ui.profile.name}"
+                    val reproKey = "${ui.seed}:${ui.profile.name}:v${ui.profile.env.configVersion}"
                     val effectSummary = if (ui.envEffects.isEmpty()) "none" else ui.envEffects.joinToString { "${it.type.name.lowercase()}:${it.turnsLeft}" }
                     hudText.text = "HP ${ui.hp}   Seed $reproKey   Steps ${ui.steps}   FX $effectSummary   ${ui.hazardSummary}"
                     profileButton.text = ui.profile.name

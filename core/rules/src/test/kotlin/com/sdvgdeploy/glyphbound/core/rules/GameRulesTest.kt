@@ -151,9 +151,48 @@ class GameRulesTest {
         }
     }
 
+    @Test
+    fun deterministicFuzzSweep_seedSpaceInvariants() {
+        val seedsPerProfile = 400
+        val intents = listOf(Direction.RIGHT, Direction.RIGHT, Direction.LEFT, Direction.DOWN, Direction.UP, Direction.LEFT)
+
+        DifficultyProfile.entries.forEach { profile ->
+            fixedSeeds(profile, seedsPerProfile).forEach { seed ->
+                var a = stateFrom(
+                    rows = listOf(
+                        "#########",
+                        "#Sooow*E#",
+                        "#...w...#",
+                        "#########"
+                    ),
+                    profile = profile,
+                    seed = seed
+                )
+                var b = a.copy()
+
+                intents.forEach { direction ->
+                    a = step(a, direction)
+                    b = step(b, direction)
+                }
+
+                val maxConfiguredTtl = profile.env.fireZoneTtl.coerceAtLeast(profile.env.shockZoneTtl)
+                assertTrue(a.hazardZones.size <= 40, "hazard zones runaway: ${a.hazardZones.size} for $profile/$seed")
+                assertTrue(a.hazardZones.all { it.ttl in 1..maxConfiguredTtl }, "ttl out of bounds for $profile/$seed")
+                assertTrue(a.hp in -200..profile.startingHp, "hp out of bounds: ${a.hp} for $profile/$seed")
+                assertEquals(a.hazardZones, b.hazardZones, "repro mismatch hazards $profile/$seed/v${profile.env.configVersion}")
+                assertEquals(a.hp, b.hp, "repro mismatch hp $profile/$seed/v${profile.env.configVersion}")
+            }
+        }
+    }
+
     private fun fixedLongSequence(): List<Direction> {
         val base = listOf(Direction.RIGHT, Direction.RIGHT, Direction.LEFT, Direction.DOWN, Direction.UP)
         return List(60) { base[it % base.size] }
+    }
+
+    private fun fixedSeeds(profile: DifficultyProfile, count: Int): List<Long> {
+        val profileOffset = (profile.ordinal + 1L) * 10_000L
+        return List(count) { i -> profileOffset + i * 97L + 23L }
     }
 
     private fun deterministicState(): GameState = stateFrom(

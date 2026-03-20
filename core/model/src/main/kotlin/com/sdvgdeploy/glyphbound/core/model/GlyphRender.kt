@@ -15,6 +15,7 @@ data class GlyphPalette(
     val ash: Int,
     val fireOverlay: Int,
     val shockOverlay: Int,
+    val mixedOverlay: Int,
     val fallback: Int = 0xFFFFFFFF.toInt()
 ) {
     fun colorFor(glyph: Char): Int = when (glyph) {
@@ -32,6 +33,7 @@ data class GlyphPalette(
         'a' -> ash
         '^' -> fireOverlay
         '!' -> shockOverlay
+        '&' -> mixedOverlay
         else -> fallback
     }
 }
@@ -51,7 +53,8 @@ object GlyphRender {
         shockedWater = 0xFF00E5FF.toInt(),
         ash = 0xFF8D8D8D.toInt(),
         fireOverlay = 0xFFFF5252.toInt(),
-        shockOverlay = 0xFF40C4FF.toInt()
+        shockOverlay = 0xFF40C4FF.toInt(),
+        mixedOverlay = 0xFFFFEA00.toInt()
     )
 
     val highContrastPalette = GlyphPalette(
@@ -66,9 +69,10 @@ object GlyphRender {
         spark = 0xFFFFFF00.toInt(),
         fire = 0xFFFF3D00.toInt(),
         shockedWater = 0xFF18FFFF.toInt(),
-        ash = 0xFFBDBDBD.toInt(),
-        fireOverlay = 0xFFFFFF00.toInt(),
-        shockOverlay = 0xFF00FFFF.toInt()
+        ash = 0xFFFAFAFA.toInt(),
+        fireOverlay = 0xFFFF1744.toInt(),
+        shockOverlay = 0xFF00E5FF.toInt(),
+        mixedOverlay = 0xFFFFFF00.toInt()
     )
 
     fun buildBuffer(level: Level, player: Pos, hazardOverlays: Map<Pos, Char> = emptyMap()): List<String> {

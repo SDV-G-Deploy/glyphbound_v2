@@ -12,13 +12,10 @@ data class HazardVisualization(
 ) {
     fun legendSummary(): String {
         if (legend.isEmpty()) return "HZ none"
-        return legend.joinToString(prefix = "HZ ") {
-            val typeLabel = when (it.type) {
-                HazardType.FIRE_ZONE -> "fire"
-                HazardType.SHOCK_ZONE -> "shock"
-            }
-            "$typeLabel x${it.count} ttl:${it.maxTtl}"
-        }
+        val fire = legend.firstOrNull { it.type == HazardType.FIRE_ZONE }
+        val shock = legend.firstOrNull { it.type == HazardType.SHOCK_ZONE }
+        val maxTtl = legend.maxOfOrNull { it.maxTtl } ?: 0
+        return "HZ F${fire?.count ?: 0} S${shock?.count ?: 0} ttl:$maxTtl"
     }
 }
 
@@ -27,9 +24,12 @@ object HazardVisualizationMapper {
         val overlays = state.hazardZones
             .groupBy { it.pos }
             .mapValues { (_, zones) ->
+                val hasFire = zones.any { it.type == HazardType.FIRE_ZONE }
+                val hasShock = zones.any { it.type == HazardType.SHOCK_ZONE }
                 when {
-                    zones.any { it.type == HazardType.FIRE_ZONE } -> '^'
-                    zones.any { it.type == HazardType.SHOCK_ZONE } -> '!'
+                    hasFire && hasShock -> '&'
+                    hasFire -> '^'
+                    hasShock -> '!'
                     else -> '?'
                 }
             }
@@ -39,7 +39,7 @@ object HazardVisualizationMapper {
             .map { (type, zones) ->
                 HazardLegendItem(type = type, count = zones.size, maxTtl = zones.maxOf { it.ttl })
             }
-            .sortedBy { it.type.name }
+            .sortedBy { if (it.type == HazardType.FIRE_ZONE) 0 else 1 }
 
         return HazardVisualization(overlays = overlays, legend = legend)
     }

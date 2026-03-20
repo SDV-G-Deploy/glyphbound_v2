@@ -1,27 +1,33 @@
-# Glyphbound (v0.2.2)
+# Glyphbound (v0.2.3)
 
 Android ASCII-like roguelite prototype with deterministic procedural generation and a ViewModel-driven state store.
 
-## V2-3 highlights
-- **Staged effect pipeline** in `core:rules`:
-  - `reduce(state, intent)` (pure + deterministic intent reduction)
-  - `applyReactions(...)` (materialize reaction effects into hazard zones/tile transitions)
-  - `tickHazards(...)` (TTL decay + tile restoration)
-  - `resolveDamage(...)` (HP/final flags)
-  - `buildCombatLog(...)` (player-facing log synthesis)
-  - `step(...)` is now a thin orchestrator for these stages.
-- **Hazard visualization in map + HUD**:
-  - map overlays: `^` (fire zone), `!` (shock zone)
-  - HUD legend aggregates active hazard types and max remaining TTL
-  - high-contrast palette includes dedicated overlay colors.
-- **Type-specific spread profiles (bounded chains)**:
-  - fire spread profile + shock spread profile in `DifficultyProfile.EnvTuning`
-  - per-profile knobs: `spreadChance`, `maxTargets`, `maxChainDepth`
-  - bounded BFS spread + deterministic rolls (seed/move/position/depth/type)
-- **Invariants/test expansion**:
-  - stage-by-stage pipeline composition tests
-  - long sequence invariants on fixed seed/path (no runaway chain, bounded TTL/HP)
-  - visual mapper and overlay rendering tests.
+## V2-4 highlights
+- **Data-driven profile tuning (config-table + validation/fallback):**
+  - Central catalog: `core/model/.../DifficultyProfile.kt` → `DifficultyTuningCatalog`
+  - Tunable knobs per profile (without touching game logic):
+    - `hazardDamageMultiplier`
+    - `fireZoneTtl`, `shockZoneTtl`
+    - `fireSpreadProfile` / `shockSpreadProfile` (`spreadChance`, `maxTargets`, `maxChainDepth`)
+    - env densities: `ambientRiskChance`, `oilChance`, `waterChance`, `sparkChance`
+    - procgen pressure: `wallChance`, `minDisjointPaths`, `useNodeDisjoint`
+  - Validation clamps unsafe values; unknown profile name falls back to NORMAL profile baseline.
+  - Deterministic repro key now includes tuning version: `seed:profile:v<configVersion>`.
+
+- **Expanded deterministic property/fuzz sweep (stable seed-set):**
+  - `core/rules/.../GameRulesTest.deterministicFuzzSweep_seedSpaceInvariants`
+  - 1200 seeds total (`400 x EASY/NORMAL/HARD`) with fixed generation formula.
+  - Invariants checked:
+    - no runaway chain/hazard growth
+    - hazard TTL always within configured bounds
+    - HP remains in allowed range
+    - reproducibility for fixed `seed+profile+configVersion`
+
+- **Hazard overlay readability polish (small screens / high-contrast):**
+  - Overlay mapper now marks mixed hazards on same tile with `&`.
+  - Compact HUD legend format: `HZ F<fireCount> S<shockCount> ttl:<maxTtl>`.
+  - High-contrast palette tweaked for clearer fire/shock/mixed distinction.
+  - Legend line includes hazard overlay glyphs (`^`, `!`, `&`).
 
 ## Modules
 - `app` — Android UI/input/render loop + `GameViewModel`
@@ -29,45 +35,25 @@ Android ASCII-like roguelite prototype with deterministic procedural generation 
 - `core:rules` — reducer + staged effect pipeline + hazard/environment rules
 - `core:procgen` — deterministic generation + path validation API
 
-## Pipeline schema
-```text
-Intent (Move)
-  -> reduce(state, intent)
-  -> applyReactions(reduced)
-  -> tickHazards(reactionState)
-  -> resolveDamage(ticked)
-  -> buildCombatLog(resolved)
+## How to tune profile balance
+1. Open `core/model/src/main/kotlin/com/sdvgdeploy/glyphbound/core/model/DifficultyProfile.kt`.
+2. Edit `DifficultyTuningCatalog.rawByProfile` values.
+3. Keep values sane (validator clamps bounds automatically).
+4. Run tests (`./gradlew test`) to confirm invariants and deterministic behavior.
+
+## Extended property/fuzz tests
+```bash
+./gradlew :core:rules:test --tests "*deterministicFuzzSweep_seedSpaceInvariants"
 ```
 
-## Hazard visualization model
-- `HazardVisualizationMapper.fromState(GameState)` builds:
-  - overlay map (`Pos -> glyph`) for tile-level hazard indication
-  - legend entries grouped by hazard type (`count`, `maxTtl`)
-- UI renders overlays through `GlyphRender.buildBuffer(..., hazardOverlays)` and shows compact legend in HUD.
-
-## Spread profile tuning
-Configured in `DifficultyProfile.EnvTuning`:
-- `fireSpreadProfile = SpreadProfile(spreadChance, maxTargets, maxChainDepth)`
-- `shockSpreadProfile = SpreadProfile(spreadChance, maxTargets, maxChainDepth)`
-
-These constraints guarantee bounded behavior and prevent runaway chain reactions.
-
-## Tests
+Or run all tests:
 ```bash
 ./gradlew test
 ```
 
-Coverage includes:
-- reducer transition and deterministic sequence checks
-- staged pipeline integration tests
-- hazard TTL decay and tile transition checks
-- bounded chain reaction checks
-- long sequence invariants
-- hazard visualization mapper and overlay rendering.
-
 ## Release lane (existing flow, unchanged)
 Workflow: `.github/workflows/android-release.yml`
 
-- Tag push `v*` runs tests, builds release APK and uploads release asset.
+- Tag push `v*` runs tests, builds release APK, uploads release asset.
 - If signing secrets exist → signed APK; otherwise unsigned fallback APK.
 - CI/infra/workflows were intentionally not modified in this iteration.
