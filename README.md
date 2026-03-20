@@ -1,4 +1,4 @@
-# Glyphbound (v0.2.3)
+# Glyphbound (v0.2.4)
 
 Android ASCII-like roguelite prototype with deterministic procedural generation and a ViewModel-driven state store.
 
@@ -54,6 +54,7 @@ Or run all tests:
 ## Release lane (existing flow, unchanged)
 Workflow: `.github/workflows/android-release.yml`
 
-- Tag push `v*` runs tests, builds release APK, uploads release asset.
-- If signing secrets exist → signed APK; otherwise unsigned fallback APK.
-- CI/infra/workflows were intentionally not modified in this iteration.
+- Tag push `v*` runs tests and uploads one installable APK asset.
+- If signing secrets exist → signed release APK.
+- If signing secrets are missing → debug-signed fallback APK (`app-debug.apk`, uploaded as `glyphbound-<tag>-debug.apk`).
+- Avoid using `*-unsigned.apk` for device install: Android blocks unsigned packages.
