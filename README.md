@@ -56,6 +56,17 @@ bash .devcontainer/scripts/ensure-local-properties.sh
 ./gradlew :app:compileDebugKotlin
 ```
 
+If your runner (e.g. Codex shell) does **not** execute devcontainer `postCreateCommand`, run a one-shot bootstrap first:
+```bash
+bash scripts/bootstrap-android-env.sh
+./gradlew :app:assembleDebug
+```
+
+Or as a single command:
+```bash
+bash scripts/bootstrap-android-env.sh && ./gradlew :app:assembleDebug
+```
+
 ## Release lane (existing flow, unchanged)
 Workflow: `.github/workflows/android-release.yml`
 
