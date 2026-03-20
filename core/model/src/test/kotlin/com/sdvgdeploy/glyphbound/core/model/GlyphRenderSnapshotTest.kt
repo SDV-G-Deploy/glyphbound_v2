@@ -60,4 +60,34 @@ class GlyphRenderSnapshotTest {
         val rendered = GlyphRender.buildBuffer(level, player = Pos(1, 1), hazardOverlays = mapOf(Pos(2, 1) to '^')).joinToString("\n")
         assertEquals("####\n#@^#\n####", rendered)
     }
+
+    @Test
+    fun enemyGlyph_isRenderedIntoBuffer() {
+        val level = Level(
+            width = 4,
+            height = 3,
+            seed = 3L,
+            tiles = mutableListOf(
+                mutableListOf(Tile.WALL, Tile.WALL, Tile.WALL, Tile.WALL),
+                mutableListOf(Tile.WALL, Tile.FLOOR, Tile.FLOOR, Tile.WALL),
+                mutableListOf(Tile.WALL, Tile.WALL, Tile.WALL, Tile.WALL)
+            ),
+            entry = Pos(1, 1),
+            exit = Pos(2, 1)
+        )
+
+        val rendered = GlyphRender.buildBuffer(
+            level = level,
+            player = Pos(1, 1),
+            enemies = listOf(Enemy(id = "e0", pos = Pos(2, 1), archetype = EnemyArchetype.STALKER))
+        ).joinToString("\n")
+
+        assertEquals("####\n#@g#\n####", rendered)
+    }
+
+    @Test
+    fun spitterGlyph_usesDistinctPaletteEntry() {
+        assertEquals(0xFFA5D6A7.toInt(), GlyphRender.defaultPalette.colorFor('s'))
+        assertEquals(0xFF69F0AE.toInt(), GlyphRender.highContrastPalette.colorFor('s'))
+    }
 }

@@ -37,6 +37,58 @@
         android:paddingTop="4dp"
         android:textSize="13sp" />
 
+    <LinearLayout
+        android:id="@+id/rewardRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingTop="4dp">
+
+        <Button
+            android:id="@+id/rewardAButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:visibility="gone"
+            android:text="Reward A" />
+
+        <Button
+            android:id="@+id/rewardBButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:visibility="gone"
+            android:text="Reward B" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/branchRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingTop="4dp">
+
+        <Button
+            android:id="@+id/branchAButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:visibility="gone"
+            android:text="Path A" />
+
+        <Button
+            android:id="@+id/branchBButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:visibility="gone"
+            android:text="Path B" />
+    </LinearLayout>
+
     <com.sdvgdeploy.glyphbound.GlyphMapView
         android:id="@+id/mapView"
         android:layout_width="match_parent"

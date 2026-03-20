@@ -2,6 +2,43 @@
 
 Android ASCII-like roguelite prototype with deterministic procedural generation and a ViewModel-driven state store.
 
+## Local environment prerequisites
+- **Java:** use **JDK 17** for Gradle/Android builds in this repo.
+- In this environment, the default `java` on `PATH` may point to a newer JDK (for example JDK 21), while this project is configured around Java 17 toolchains.
+- If Gradle fails even though JDK 17 is installed, explicitly switch before running checks:
+  ```bash
+  export JAVA_HOME=/root/.local/share/mise/installs/java/17.0.2
+  export PATH="$JAVA_HOME/bin:$PATH"
+  java -version
+  ./gradlew -version
+  ```
+- **Android SDK:** app tasks such as `:app:testDebugUnitTest` and `:app:assembleDebug` also require a valid SDK location.
+  - Fast path for Codex/runner environments:
+    ```bash
+    bash scripts/bootstrap-android-env.sh
+    ```
+  - Either set `ANDROID_HOME`, or
+  - create `local.properties` with:
+    ```properties
+    sdk.dir=/absolute/path/to/Android/Sdk
+    ```
+
+### Quick local check order
+1. Point `JAVA_HOME` to JDK 17.
+2. Confirm `java -version` prints 17.x.
+3. Ensure Android SDK is configured (`ANDROID_HOME` or `local.properties`).
+4. Run JVM-only checks first:
+   ```bash
+   ./gradlew :core:model:test :core:rules:test :core:procgen:test
+   ```
+5. Then run Android/app checks:
+   ```bash
+   bash scripts/bootstrap-android-env.sh
+   ./gradlew :app:compileDebugKotlin
+   ./gradlew test
+   ./gradlew :app:assembleDebug
+   ```
+
 ## V2-6 highlights
 - **Persistent hazard damage balancing (P0):**
   - Added per-profile cap `persistentDamageCapPerTurn` to prevent runaway burst damage from stacked zones.
