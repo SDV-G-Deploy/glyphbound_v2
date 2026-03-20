@@ -1,6 +1,9 @@
 package com.sdvgdeploy.glyphbound.core.rules
 
 import com.sdvgdeploy.glyphbound.core.model.Direction
+import com.sdvgdeploy.glyphbound.core.model.Enemy
+import com.sdvgdeploy.glyphbound.core.model.EnemyArchetype
+import com.sdvgdeploy.glyphbound.core.model.EnemyIntent
 import com.sdvgdeploy.glyphbound.core.model.GameState
 import com.sdvgdeploy.glyphbound.core.model.HazardType
 import com.sdvgdeploy.glyphbound.core.model.HazardZone
@@ -20,8 +23,10 @@ data class PipelineState(
     val state: GameState,
     val levelTiles: List<MutableList<Tile>>,
     val hazardZones: List<HazardZone>,
+    val enemies: List<Enemy>,
     val events: List<String>,
     val persistentHazardDamage: Int = 0,
+    val enemyContactDamage: Int = 0,
     val mixedHazardBonusApplied: Int = 0
 )
 
@@ -34,9 +39,14 @@ fun step(state: GameState, direction: Direction): GameState {
     val reduced = reduce(state, direction)
     val reacted = applyReactions(reduced)
     val ticked = tickHazards(reacted)
-    val resolved = resolveDamage(ticked)
-    return buildCombatLog(resolved)
+    val enemyResolved = advanceEnemies(ticked)
+    val resolved = resolveDamage(enemyResolved)
+    return refreshEnemyIntents(buildCombatLog(resolved))
 }
+
+fun refreshEnemyIntents(state: GameState): GameState = state.copy(
+    enemies = state.enemies.map { enemy -> enemy.copy(intent = planEnemyIntent(enemy, state)) }
+)
 
 fun reduce(state: GameState, direction: Direction): ReduceResult {
     if (state.finished) return ReduceResult(state, emptyList(), emptyList())
@@ -49,6 +59,24 @@ fun reduce(state: GameState, direction: Direction): ReduceResult {
     }
 
     val target = Pos(state.player.x + delta.x, state.player.y + delta.y)
+    val targetEnemy = state.enemies.firstOrNull { it.pos == target }
+    if (targetEnemy != null) {
+        val updatedEnemies = state.enemies.map { enemy ->
+            if (enemy.id == targetEnemy.id) enemy.copy(hp = enemy.hp - 1) else enemy
+        }.filter { it.isAlive }
+
+        val attackState = state.copy(
+            moves = state.moves + 1,
+            enemies = updatedEnemies
+        )
+        val attackEvent = if (updatedEnemies.any { it.id == targetEnemy.id }) {
+            "Hit ${targetEnemy.archetype.name.lowercase()}: -1 HP"
+        } else {
+            "Slain ${targetEnemy.archetype.name.lowercase()}"
+        }
+        return ReduceResult(attackState, emptyList(), listOf(attackEvent))
+    }
+
     if (!state.level.isWalkable(target)) {
         val blockedState = state.copy(
             moves = state.moves + 1,
@@ -150,6 +178,7 @@ fun applyReactions(result: ReduceResult): PipelineState {
         state = state,
         levelTiles = levelTiles,
         hazardZones = refreshedZones,
+        enemies = state.enemies,
         events = result.events
     )
 }
@@ -182,9 +211,48 @@ fun tickHazards(state: PipelineState): PipelineState {
     )
 }
 
+fun advanceEnemies(state: PipelineState): PipelineState {
+    if (state.enemies.isEmpty() || state.state.finished) return state
+
+    val occupied = state.enemies.associateBy { it.id }.toMutableMap()
+    var damage = 0
+    val events = state.events.toMutableList()
+
+    val advanced = state.enemies.sortedBy { it.id }.map { enemy ->
+        val others = occupied.values.filter { it.id != enemy.id }.map { it.pos }.toSet()
+        val next = nextEnemyStep(enemy.pos, state.state.player, state.state.level, others)
+        val updated = when {
+            enemy.archetype == EnemyArchetype.SPITTER && hasLineOfSight(enemy.pos, state.state.player, state.state.level) && inRange(enemy.pos, state.state.player, enemy.archetype.attackRange) -> {
+                damage += enemy.archetype.contactDamage
+                events += "spitter spits: -${enemy.archetype.contactDamage} HP"
+                enemy
+            }
+
+            isAdjacent(enemy.pos, state.state.player) -> {
+                damage += enemy.archetype.contactDamage
+                events += "${enemy.archetype.name.lowercase()} strikes: -${enemy.archetype.contactDamage} HP"
+                enemy
+            }
+
+            next == state.state.player -> {
+                damage += enemy.archetype.contactDamage
+                events += "${enemy.archetype.name.lowercase()} strikes: -${enemy.archetype.contactDamage} HP"
+                enemy
+            }
+
+            next != enemy.pos -> enemy.copy(pos = next)
+            else -> enemy
+        }
+        occupied[enemy.id] = updated
+        updated
+    }
+
+    return state.copy(enemies = advanced, enemyContactDamage = damage, events = events)
+}
+
 fun resolveDamage(state: PipelineState): PipelineState {
     val level = state.state.level.copy(tiles = state.levelTiles)
-    val hpAfter = state.state.hp - state.persistentHazardDamage
+    val hpAfter = state.state.hp - state.persistentHazardDamage - state.enemyContactDamage
     val atExit = state.state.player == level.exit
     val died = hpAfter <= 0
 
@@ -194,7 +262,8 @@ fun resolveDamage(state: PipelineState): PipelineState {
             hp = hpAfter,
             finished = atExit || died,
             won = atExit && !died,
-            hazardZones = state.hazardZones
+            hazardZones = state.hazardZones,
+            enemies = state.enemies
         )
     )
 }
@@ -206,6 +275,7 @@ fun buildCombatLog(state: PipelineState): GameState {
     val messageParts = buildList {
         addAll(state.events)
         if (state.persistentHazardDamage > 0) add("Persistent hazard: -${state.persistentHazardDamage} HP")
+        if (state.enemyContactDamage > 0) add("Enemy pressure: -${state.enemyContactDamage} HP")
         if (state.mixedHazardBonusApplied > 0) add("Mixed surge: +${state.mixedHazardBonusApplied}")
         if (died) add("You collapsed on the path")
         if (atExit && !died) add("Escaped")
@@ -217,6 +287,61 @@ fun buildCombatLog(state: PipelineState): GameState {
         message = message,
         messageLog = (state.state.messageLog + message).takeLast(8)
     )
+}
+
+private fun planEnemyIntent(enemy: Enemy, state: GameState): EnemyIntent {
+    return when {
+        enemy.archetype == EnemyArchetype.SPITTER && hasLineOfSight(enemy.pos, state.player, state.level) && inRange(enemy.pos, state.player, enemy.archetype.attackRange) -> EnemyIntent.RANGED_ATTACK
+        isAdjacent(enemy.pos, state.player) -> EnemyIntent.MELEE_ATTACK
+        nextEnemyStep(enemy.pos, state.player, state.level, state.enemies.filter { it.id != enemy.id }.map { it.pos }.toSet()) != enemy.pos -> EnemyIntent.ADVANCE
+        else -> EnemyIntent.HOLD
+    }
+}
+
+private fun nextEnemyStep(enemyPos: Pos, playerPos: Pos, level: Level, blocked: Set<Pos>): Pos {
+    val deltas = if (kotlin.math.abs(playerPos.x - enemyPos.x) >= kotlin.math.abs(playerPos.y - enemyPos.y)) {
+        listOf(
+            Pos(sign(playerPos.x - enemyPos.x), 0),
+            Pos(0, sign(playerPos.y - enemyPos.y))
+        )
+    } else {
+        listOf(
+            Pos(0, sign(playerPos.y - enemyPos.y)),
+            Pos(sign(playerPos.x - enemyPos.x), 0)
+        )
+    }
+
+    return deltas
+        .map { Pos(enemyPos.x + it.x, enemyPos.y + it.y) }
+        .firstOrNull { candidate ->
+            candidate != enemyPos && level.isWalkable(candidate) && candidate !in blocked
+        }
+        ?: enemyPos
+}
+
+private fun sign(value: Int): Int = when {
+    value > 0 -> 1
+    value < 0 -> -1
+    else -> 0
+}
+
+private fun isAdjacent(a: Pos, b: Pos): Boolean =
+    kotlin.math.abs(a.x - b.x) + kotlin.math.abs(a.y - b.y) == 1
+
+private fun inRange(a: Pos, b: Pos, range: Int): Boolean =
+    (a.x == b.x || a.y == b.y) && (kotlin.math.abs(a.x - b.x) + kotlin.math.abs(a.y - b.y) <= range)
+
+private fun hasLineOfSight(from: Pos, to: Pos, level: Level): Boolean {
+    if (from.x != to.x && from.y != to.y) return false
+    return if (from.x == to.x) {
+        val x = from.x
+        val ys = if (from.y < to.y) (from.y + 1) until to.y else (to.y + 1) until from.y
+        ys.all { y -> level.tileAt(Pos(x, y)).walkable }
+    } else {
+        val y = from.y
+        val xs = if (from.x < to.x) (from.x + 1) until to.x else (to.x + 1) until from.x
+        xs.all { x -> level.tileAt(Pos(x, y)).walkable }
+    }
 }
 
 private fun boundedSpread(

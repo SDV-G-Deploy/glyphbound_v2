@@ -13,6 +13,9 @@ data class GlyphPalette(
     val fire: Int,
     val shockedWater: Int,
     val ash: Int,
+    val stalker: Int,
+    val brute: Int,
+    val spitter: Int,
     val fireOverlay: Int,
     val shockOverlay: Int,
     val mixedOverlay: Int,
@@ -31,6 +34,9 @@ data class GlyphPalette(
         'f' -> fire
         'z' -> shockedWater
         'a' -> ash
+        'g' -> stalker
+        'O' -> brute
+        's' -> spitter
         '^' -> fireOverlay
         '!' -> shockOverlay
         '&' -> mixedOverlay
@@ -52,6 +58,9 @@ object GlyphRender {
         fire = 0xFFFF7043.toInt(),
         shockedWater = 0xFF00E5FF.toInt(),
         ash = 0xFF8D8D8D.toInt(),
+        stalker = 0xFFE57373.toInt(),
+        brute = 0xFFFFB74D.toInt(),
+        spitter = 0xFFA5D6A7.toInt(),
         fireOverlay = 0xFFFF5252.toInt(),
         shockOverlay = 0xFF40C4FF.toInt(),
         mixedOverlay = 0xFFFFEA00.toInt()
@@ -70,12 +79,21 @@ object GlyphRender {
         fire = 0xFFFF3D00.toInt(),
         shockedWater = 0xFF18FFFF.toInt(),
         ash = 0xFFFAFAFA.toInt(),
+        stalker = 0xFFFF5252.toInt(),
+        brute = 0xFFFF6F00.toInt(),
+        spitter = 0xFF69F0AE.toInt(),
         fireOverlay = 0xFFFF1744.toInt(),
         shockOverlay = 0xFF00E5FF.toInt(),
         mixedOverlay = 0xFFFFFF00.toInt()
     )
 
-    fun buildBuffer(level: Level, player: Pos, hazardOverlays: Map<Pos, Char> = emptyMap()): List<String> {
+    fun buildBuffer(
+        level: Level,
+        player: Pos,
+        enemies: List<Enemy> = emptyList(),
+        hazardOverlays: Map<Pos, Char> = emptyMap()
+    ): List<String> {
+        val enemiesByPos = enemies.filter { it.isAlive }.associateBy { it.pos }
         return level.tiles.mapIndexed { y, row ->
             buildString(level.width) {
                 row.forEachIndexed { x, tile ->
@@ -83,6 +101,7 @@ object GlyphRender {
                     append(
                         when {
                             player == pos -> '@'
+                            enemiesByPos.containsKey(pos) -> enemiesByPos.getValue(pos).archetype.glyph
                             hazardOverlays.containsKey(pos) -> hazardOverlays.getValue(pos)
                             else -> tile.glyph
                         }

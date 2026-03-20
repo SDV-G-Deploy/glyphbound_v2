@@ -1,5 +1,7 @@
 package com.sdvgdeploy.glyphbound.core.model
 
+import kotlin.math.absoluteValue
+
 enum class Tile(val glyph: Char, val walkable: Boolean, val risk: Int = 0) {
     FLOOR('.', true),
     WALL('#', false),
@@ -48,6 +50,24 @@ data class HazardZone(
     val source: String
 )
 
+enum class EnemyArchetype(val glyph: Char, val maxHp: Int, val contactDamage: Int, val attackRange: Int = 1) {
+    STALKER('g', maxHp = 2, contactDamage = 1),
+    BRUTE('O', maxHp = 3, contactDamage = 2),
+    SPITTER('s', maxHp = 1, contactDamage = 1, attackRange = 3)
+}
+
+enum class EnemyIntent { HOLD, ADVANCE, MELEE_ATTACK, RANGED_ATTACK }
+
+data class Enemy(
+    val id: String,
+    val pos: Pos,
+    val archetype: EnemyArchetype,
+    val hp: Int = archetype.maxHp,
+    val intent: EnemyIntent = EnemyIntent.HOLD
+) {
+    val isAlive: Boolean get() = hp > 0
+}
+
 data class GameState(
     val level: Level,
     val player: Pos,
@@ -59,7 +79,40 @@ data class GameState(
     val message: String = "Reach E",
     val messageLog: List<String> = listOf("Reach E"),
     val envEffects: List<EnvEffect> = emptyList(),
-    val hazardZones: List<HazardZone> = emptyList()
+    val hazardZones: List<HazardZone> = emptyList(),
+    val enemies: List<Enemy> = emptyList()
 )
 
 enum class Direction { UP, DOWN, LEFT, RIGHT }
+
+object EnemyDirector {
+    fun spawnInitial(level: Level, profile: DifficultyProfile): List<Enemy> {
+        val candidates = buildList {
+            for (y in 1 until level.height - 1) {
+                for (x in 1 until level.width - 1) {
+                    val pos = Pos(x, y)
+                    if (!level.isWalkable(pos) || pos == level.entry || pos == level.exit) continue
+                    add(pos)
+                }
+            }
+        }
+
+        if (candidates.isEmpty()) return emptyList()
+
+        val sorted = candidates.sortedWith(compareBy<Pos> { manhattan(it, level.exit) }.thenBy { it.y }.thenBy { it.x })
+        val first = sorted.firstOrNull { manhattan(it, level.entry) >= 4 } ?: return emptyList()
+        val primaryArchetype = if ((level.seed.absoluteValue % 2L) == 0L) EnemyArchetype.STALKER else EnemyArchetype.SPITTER
+        val primary = Enemy(id = "enemy-0", pos = first, archetype = primaryArchetype)
+
+        val second = if (profile == DifficultyProfile.HARD) {
+            sorted.firstOrNull { it != first && manhattan(it, level.entry) >= 6 }
+                ?.let { Enemy(id = "enemy-1", pos = it, archetype = EnemyArchetype.BRUTE) }
+        } else {
+            null
+        }
+
+        return listOfNotNull(primary, second)
+    }
+
+    private fun manhattan(a: Pos, b: Pos): Int = kotlin.math.abs(a.x - b.x) + kotlin.math.abs(a.y - b.y)
+}
