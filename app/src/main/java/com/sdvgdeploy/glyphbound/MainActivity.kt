@@ -56,7 +56,7 @@ class MainActivity : AppCompatActivity() {
                 viewModel.uiState.collect { ui ->
                     val reproKey = "${ui.seed}:${ui.profile.name}"
                     val effectSummary = if (ui.envEffects.isEmpty()) "none" else ui.envEffects.joinToString { "${it.type.name.lowercase()}:${it.turnsLeft}" }
-                    hudText.text = "HP ${ui.hp}   Seed $reproKey   Steps ${ui.steps}   FX $effectSummary"
+                    hudText.text = "HP ${ui.hp}   Seed $reproKey   Steps ${ui.steps}   FX $effectSummary   ${ui.hazardSummary}"
                     profileButton.text = ui.profile.name
                     messageText.text = ui.messageLog.lastOrNull() ?: "Move"
                     mapView.render(buffer = ui.map, highContrast = ui.highContrast)

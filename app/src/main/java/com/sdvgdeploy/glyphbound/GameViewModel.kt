@@ -6,6 +6,8 @@ import com.sdvgdeploy.glyphbound.core.model.Direction
 import com.sdvgdeploy.glyphbound.core.model.EnvEffect
 import com.sdvgdeploy.glyphbound.core.model.GameState
 import com.sdvgdeploy.glyphbound.core.model.GlyphRender
+import com.sdvgdeploy.glyphbound.core.model.HazardVisualization
+import com.sdvgdeploy.glyphbound.core.model.HazardVisualizationMapper
 import com.sdvgdeploy.glyphbound.core.model.Pos
 import com.sdvgdeploy.glyphbound.core.procgen.LevelGenerator
 import com.sdvgdeploy.glyphbound.core.rules.step
@@ -22,6 +24,7 @@ data class GameUiState(
     val steps: Int,
     val messageLog: List<String>,
     val envEffects: List<EnvEffect>,
+    val hazardSummary: String,
     val finished: Boolean,
     val won: Boolean,
     val highContrast: Boolean
@@ -78,8 +81,9 @@ class GameViewModel : ViewModel() {
     }
 
     private fun toUiState(gameState: GameState, highContrast: Boolean, seed: Long): GameUiState {
+        val hazardVisualization: HazardVisualization = HazardVisualizationMapper.fromState(gameState)
         return GameUiState(
-            map = GlyphRender.buildBuffer(gameState.level, gameState.player),
+            map = GlyphRender.buildBuffer(gameState.level, gameState.player, hazardVisualization.overlays),
             player = gameState.player,
             hp = gameState.hp,
             seed = seed,
@@ -87,6 +91,7 @@ class GameViewModel : ViewModel() {
             steps = gameState.moves,
             messageLog = gameState.messageLog,
             envEffects = gameState.envEffects,
+            hazardSummary = hazardVisualization.legendSummary(),
             finished = gameState.finished,
             won = gameState.won,
             highContrast = highContrast

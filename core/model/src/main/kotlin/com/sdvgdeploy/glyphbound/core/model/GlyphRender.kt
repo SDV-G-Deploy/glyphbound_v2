@@ -13,6 +13,8 @@ data class GlyphPalette(
     val fire: Int,
     val shockedWater: Int,
     val ash: Int,
+    val fireOverlay: Int,
+    val shockOverlay: Int,
     val fallback: Int = 0xFFFFFFFF.toInt()
 ) {
     fun colorFor(glyph: Char): Int = when (glyph) {
@@ -28,6 +30,8 @@ data class GlyphPalette(
         'f' -> fire
         'z' -> shockedWater
         'a' -> ash
+        '^' -> fireOverlay
+        '!' -> shockOverlay
         else -> fallback
     }
 }
@@ -45,7 +49,9 @@ object GlyphRender {
         spark = 0xFFFFF176.toInt(),
         fire = 0xFFFF7043.toInt(),
         shockedWater = 0xFF00E5FF.toInt(),
-        ash = 0xFF8D8D8D.toInt()
+        ash = 0xFF8D8D8D.toInt(),
+        fireOverlay = 0xFFFF5252.toInt(),
+        shockOverlay = 0xFF40C4FF.toInt()
     )
 
     val highContrastPalette = GlyphPalette(
@@ -60,14 +66,23 @@ object GlyphRender {
         spark = 0xFFFFFF00.toInt(),
         fire = 0xFFFF3D00.toInt(),
         shockedWater = 0xFF18FFFF.toInt(),
-        ash = 0xFFBDBDBD.toInt()
+        ash = 0xFFBDBDBD.toInt(),
+        fireOverlay = 0xFFFFFF00.toInt(),
+        shockOverlay = 0xFF00FFFF.toInt()
     )
 
-    fun buildBuffer(level: Level, player: Pos): List<String> {
+    fun buildBuffer(level: Level, player: Pos, hazardOverlays: Map<Pos, Char> = emptyMap()): List<String> {
         return level.tiles.mapIndexed { y, row ->
             buildString(level.width) {
                 row.forEachIndexed { x, tile ->
-                    append(if (player == Pos(x, y)) '@' else tile.glyph)
+                    val pos = Pos(x, y)
+                    append(
+                        when {
+                            player == pos -> '@'
+                            hazardOverlays.containsKey(pos) -> hazardOverlays.getValue(pos)
+                            else -> tile.glyph
+                        }
+                    )
                 }
             }
         }
