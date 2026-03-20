@@ -1,0 +1,13 @@
+{
+  "name": "Glyphbound Java 17 + Gradle",
+  "image": "mcr.microsoft.com/devcontainers/java:1-17-bookworm",
+  "postCreateCommand": "./gradlew --version",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vscjava.vscode-java-pack",
+        "vscjava.vscode-gradle"
+      ]
+    }
+  }
+}
