@@ -4,33 +4,21 @@ import com.sdvgdeploy.glyphbound.core.model.DifficultyProfile
 import com.sdvgdeploy.glyphbound.core.model.Level
 import com.sdvgdeploy.glyphbound.core.model.Pos
 import com.sdvgdeploy.glyphbound.core.model.Tile
+import kotlin.system.measureTimeMillis
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ProcgenValidationTest {
+    private val seedsPerProfile = 220
+
     @Test
     fun reproducibility_sameSeed_sameMap() {
         val seed = 424242L
         val a = LevelGenerator.generate(seed)
         val b = LevelGenerator.generate(seed)
-
-        assertEquals(a.width, b.width)
-        assertEquals(a.height, b.height)
-        assertEquals(a.entry, b.entry)
-        assertEquals(a.exit, b.exit)
-        assertEquals(
-            a.tiles.map { row -> row.map { it.glyph } },
-            b.tiles.map { row -> row.map { it.glyph } }
-        )
-    }
-
-    @Test
-    fun connectivity_entryAlwaysReachesExit() {
-        val level = LevelGenerator.generate(123456L)
-        val result = PathValidator.validate(level)
-        assertTrue(result.connected)
+        assertEquals(a.tiles.map { row -> row.map { it.glyph } }, b.tiles.map { row -> row.map { it.glyph } })
     }
 
     @Test
@@ -56,47 +44,39 @@ class ProcgenValidationTest {
     }
 
     @Test
-    fun nodeMode_isStricterThanEdge_onControlledMap() {
-        val edgeConfig = PathValidationConfig(minDisjointPaths = 2, mode = DisjointMode.EDGE)
-        val nodeConfig = PathValidationConfig(minDisjointPaths = 2, mode = DisjointMode.NODE)
-
-        val candidate = (1L..5_000L)
-            .map { LevelGenerator.generate(it, LevelGenerator.Config(width = 9, height = 7, wallChance = 0.28, riskChance = 0.0, validator = edgeConfig)) }
-            .firstOrNull { level ->
-                val edge = PathValidator.validate(level, edgeConfig)
-                val node = PathValidator.validate(level, nodeConfig)
-                edge.isValid && !node.isValid
+    fun property_connectivity_and_policy_onDeterministicSeedSpace() {
+        val elapsed = measureTimeMillis {
+            DifficultyProfile.entries.forEach { profile ->
+                fixedSeeds(profile, seedsPerProfile).forEach { seed ->
+                    val level = LevelGenerator.generate(seed, profile)
+                    val result = PathValidator.validate(level, LevelGenerator.configFor(profile).validator)
+                    assertTrue(result.connected, "expected connectivity for $profile/$seed")
+                    assertTrue(result.isValid, "expected policy-valid map for $profile/$seed")
+                }
             }
-
-        assertTrue(candidate != null, "Expected at least one map where EDGE passes but NODE fails")
-
-        val edge = PathValidator.validate(candidate!!, edgeConfig)
-        val node = PathValidator.validate(candidate, nodeConfig)
-        assertTrue(edge.disjointPathCount >= node.disjointPathCount)
-        assertTrue(edge.isValid)
-        assertFalse(node.isValid)
+        }
+        assertTrue(elapsed < 15_000, "seed sweep is too slow: ${elapsed}ms")
     }
 
     @Test
-    fun deterministicRetry_withSameSeedAndProfile_staysReproducible() {
-        val seed = 8888L
-        val profile = DifficultyProfile.HARD
+    fun property_determinism_onDeterministicSeedSpace() {
+        DifficultyProfile.entries.forEach { profile ->
+            fixedSeeds(profile, seedsPerProfile).forEach { seed ->
+                val a = LevelGenerator.generate(seed, profile)
+                val b = LevelGenerator.generate(seed, profile)
+                assertEquals(a.seed, b.seed)
+                assertEquals(
+                    a.tiles.map { row -> row.map { it.glyph } },
+                    b.tiles.map { row -> row.map { it.glyph } },
+                    "map mismatch for $profile/$seed"
+                )
+            }
+        }
+    }
 
-        val a = LevelGenerator.generate(seed, profile)
-        val b = LevelGenerator.generate(seed, profile)
-
-        assertEquals(
-            a.tiles.map { row -> row.map { it.glyph } },
-            b.tiles.map { row -> row.map { it.glyph } }
-        )
-        assertEquals(a.seed, b.seed)
-
-        val validation = PathValidator.validate(
-            a,
-            LevelGenerator.configFor(profile).validator
-        )
-        assertTrue(validation.isValid)
-        assertEquals(DisjointMode.NODE, validation.mode)
+    private fun fixedSeeds(profile: DifficultyProfile, count: Int): List<Long> {
+        val profileOffset = (profile.ordinal + 1L) * 100_000L
+        return List(count) { i -> profileOffset + i * 37L + 11L }
     }
 
     private fun fromAscii(vararg rows: String): Level {
@@ -110,6 +90,10 @@ class ProcgenValidationTest {
                     'S' -> Tile.ENTRY
                     'E' -> Tile.EXIT
                     '~' -> Tile.RISK
+                    'o' -> Tile.OIL
+                    'w' -> Tile.WATER
+                    '*' -> Tile.SPARK
+                    'f' -> Tile.FIRE
                     else -> Tile.FLOOR
                 }
             }

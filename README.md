@@ -1,30 +1,39 @@
-# Glyphbound (v0.1.2)
+# Glyphbound (v0.2.0)
 
-Android ASCII-like roguelite prototype with deterministic procedural generation.
+Android ASCII-like roguelite prototype with deterministic procedural generation and a ViewModel-driven state store.
 
-## V1-3 highlights
-- `GlyphMapView` custom renderer extracted from `MainActivity`:
-  - monospace paint (`Typeface.MONOSPACE`)
-  - stable per-cell width/height from font metrics
-  - DPI-safe canvas drawing
-  - high-contrast palette support
-  - no heavy animations
-- Difficulty profiles: `EASY`, `NORMAL`, `HARD`
-  - affect generation (`wallChance`, `riskChance`)
-  - affect validator strictness (`EDGE` vs `NODE`, min disjoint paths)
-  - affect gameplay (`startingHp`, risk damage multiplier)
-- Reproducibility key: `seed + profile`
-- New test coverage:
-  - lightweight golden snapshot for glyph buffer
-  - palette high-contrast policy test
-  - validator policy tests for EDGE/NODE behavior
-  - deterministic retry reproducibility for fixed `seed+profile`
+## V2-1 highlights
+- **Single source of truth state** in `GameViewModel`:
+  - immutable `GameUiState`
+  - intent/action dispatch (`GameIntent`)
+  - Activity only observes state + sends intents
+- **System depth v1: environment reactions**:
+  - tiles: `o` oil, `w` water, `*` spark (+ legacy `~` risk, `f` fire)
+  - reactions:
+    - oil + spark/fire => **Ignition** effect
+    - water + spark => **Shock** effect
+  - reactions surfaced via HUD + message log
+- **Difficulty tuning table** centralized in `DifficultyProfile.EnvTuning`:
+  - tile frequencies
+  - hazard multipliers
+  - reaction duration and tick intensity
+- **Property/fuzz testing baseline**:
+  - deterministic seed sweep (fixed seed set per profile)
+  - connectivity + validator policy checks
+  - deterministic reproducibility checks
 
 ## Modules
-- `app` — Android UI/input/render loop
-- `core:model` — domain model + difficulty profile + glyph render buffer
-- `core:rules` — movement and damage rules
+- `app` — Android UI/input/render loop + `GameViewModel`
+- `core:model` — domain model, immutable state, effects, glyph rendering
+- `core:rules` — movement, hazard and environment reaction rules
 - `core:procgen` — deterministic generation + path validation API
+
+## Reproducibility key
+Map generation is reproducible by pair:
+- `seed`
+- `profile`
+
+Generator key stays deterministic via `seedWithProfile(seed, profile)`.
 
 ## Run
 ```bash
@@ -33,35 +42,33 @@ Android ASCII-like roguelite prototype with deterministic procedural generation.
 APK path:
 `app/build/outputs/apk/debug/app-debug.apk`
 
-## Choosing difficulty profile
-By default: `NORMAL`.
-
-You can pass extras at launch:
-- `seed` (Long)
-- `profile` (`EASY|NORMAL|HARD`)
-
-Or switch in-app via the profile button in HUD.
-
-## Reproduce same map
-Use the same pair:
-- `seed`
-- `profile`
-
-Generator key is derived as deterministic `seedWithProfile(seed, profile)`.
-
 ## Tests
 ```bash
 ./gradlew test
 ```
-Includes:
-- render golden snapshot (`GlyphRenderSnapshotTest`)
-- high-contrast palette expectation test
-- connectivity and disjoint validator policy tests
-- NODE stricter-than-EDGE controlled case
-- deterministic retry reproducibility for fixed `seed+profile`
 
-## CI
-`.github/workflows/android-debug.yml` runs:
-1. `./gradlew test`
-2. `./gradlew :app:assembleDebug`
-3. Uploads debug APK artifact
+### Property/fuzz tests details
+- deterministic fixed seed sweep: `220` seeds per profile (`EASY/NORMAL/HARD`)
+- checks:
+  - map connectivity (`entry -> exit`)
+  - validator policy correctness (`PathValidator` with profile config)
+  - reproducibility (`same seed+profile => identical map`)
+- runtime guard in test: seed sweep expected under ~15 seconds on CI runner
+
+## Release lane baseline (signing-ready)
+- `.github/workflows/android-release.yml`
+- runs on tags (`v*`) and manual trigger
+- steps:
+  1. tests
+  2. unsigned release APK (`assembleRelease`)
+  3. optional signed skeleton step if keystore secrets are present
+  4. auto-generate changelog from git tags/commit messages
+  5. publish GitHub Release + APK asset
+
+### Required secrets for signed lane (optional skeleton)
+- `ANDROID_KEYSTORE_BASE64`
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+
+No secrets are committed to repo.

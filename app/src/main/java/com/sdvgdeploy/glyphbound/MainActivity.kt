@@ -5,24 +5,23 @@ import android.view.MotionEvent
 import android.widget.Button
 import android.widget.Switch
 import android.widget.TextView
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.sdvgdeploy.glyphbound.core.model.DifficultyProfile
 import com.sdvgdeploy.glyphbound.core.model.Direction
-import com.sdvgdeploy.glyphbound.core.model.GameState
-import com.sdvgdeploy.glyphbound.core.procgen.LevelGenerator
-import com.sdvgdeploy.glyphbound.core.rules.step
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 class MainActivity : AppCompatActivity() {
-    private lateinit var state: GameState
+    private val viewModel: GameViewModel by viewModels()
+
     private lateinit var mapView: GlyphMapView
     private lateinit var hudText: TextView
     private lateinit var messageText: TextView
     private lateinit var profileButton: Button
-
-    private var highContrast = false
-    private var baseSeed = 1337L
-    private var profile = DifficultyProfile.NORMAL
 
     private var touchStartX = 0f
     private var touchStartY = 0f
@@ -37,33 +36,35 @@ class MainActivity : AppCompatActivity() {
         messageText = findViewById(R.id.messageText)
         profileButton = findViewById(R.id.profileButton)
 
-        baseSeed = intent?.getLongExtra("seed", 1337L) ?: 1337L
-        profile = DifficultyProfile.fromRaw(intent?.getStringExtra("profile"))
+        val baseSeed = intent?.getLongExtra("seed", 1337L) ?: 1337L
+        val profile = DifficultyProfile.fromRaw(intent?.getStringExtra("profile"))
 
-        findViewById<Button>(R.id.upButton).setOnClickListener { move(Direction.UP) }
-        findViewById<Button>(R.id.downButton).setOnClickListener { move(Direction.DOWN) }
-        findViewById<Button>(R.id.leftButton).setOnClickListener { move(Direction.LEFT) }
-        findViewById<Button>(R.id.rightButton).setOnClickListener { move(Direction.RIGHT) }
+        findViewById<Button>(R.id.upButton).setOnClickListener { viewModel.dispatch(GameIntent.Move(Direction.UP)) }
+        findViewById<Button>(R.id.downButton).setOnClickListener { viewModel.dispatch(GameIntent.Move(Direction.DOWN)) }
+        findViewById<Button>(R.id.leftButton).setOnClickListener { viewModel.dispatch(GameIntent.Move(Direction.LEFT)) }
+        findViewById<Button>(R.id.rightButton).setOnClickListener { viewModel.dispatch(GameIntent.Move(Direction.RIGHT)) }
 
         findViewById<Switch>(R.id.highContrastSwitch).setOnCheckedChangeListener { _, checked ->
-            highContrast = checked
-            render()
+            viewModel.dispatch(GameIntent.ToggleContrast(checked))
         }
 
-        profileButton.setOnClickListener {
-            profile = DifficultyProfile.entries[(profile.ordinal + 1) % DifficultyProfile.entries.size]
-            restartLevel()
-        }
-
+        profileButton.setOnClickListener { viewModel.dispatch(GameIntent.CycleProfile) }
         mapView.setOnTouchListener { _, event -> handleSwipe(event) }
 
-        restartLevel()
-    }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.uiState.collect { ui ->
+                    val reproKey = "${ui.seed}:${ui.profile.name}"
+                    val effectSummary = if (ui.envEffects.isEmpty()) "none" else ui.envEffects.joinToString { "${it.type.name.lowercase()}:${it.turnsLeft}" }
+                    hudText.text = "HP ${ui.hp}   Seed $reproKey   Steps ${ui.steps}   FX $effectSummary"
+                    profileButton.text = ui.profile.name
+                    messageText.text = ui.messageLog.lastOrNull() ?: "Move"
+                    mapView.render(buffer = ui.map, highContrast = ui.highContrast)
+                }
+            }
+        }
 
-    private fun restartLevel() {
-        val level = LevelGenerator.generate(baseSeed, profile)
-        state = GameState(level = level, player = level.entry, profile = profile)
-        render()
+        viewModel.dispatch(GameIntent.Start(seed = baseSeed, profile = profile))
     }
 
     private fun handleSwipe(event: MotionEvent): Boolean {
@@ -73,6 +74,7 @@ class MainActivity : AppCompatActivity() {
                 touchStartY = event.y
                 return true
             }
+
             MotionEvent.ACTION_UP -> {
                 val dx = event.x - touchStartX
                 val dy = event.y - touchStartY
@@ -85,26 +87,10 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     if (dy > 0) Direction.DOWN else Direction.UP
                 }
-                move(direction)
+                viewModel.dispatch(GameIntent.Move(direction))
                 return true
             }
         }
         return false
-    }
-
-    private fun move(direction: Direction) {
-        state = step(state, direction)
-        render()
-    }
-
-    private fun render() {
-        val reproKey = "${baseSeed}:${profile.name}"
-        hudText.text = "HP ${state.hp}   Seed $reproKey   Steps ${state.moves}"
-        profileButton.text = profile.name
-        messageText.text = state.message
-        mapView.render(
-            buffer = com.sdvgdeploy.glyphbound.core.model.GlyphRender.buildBuffer(state.level, state.player),
-            highContrast = highContrast
-        )
     }
 }

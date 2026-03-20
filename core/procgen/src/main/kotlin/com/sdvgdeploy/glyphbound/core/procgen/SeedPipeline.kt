@@ -11,7 +11,10 @@ object LevelGenerator {
         val width: Int = 24,
         val height: Int = 16,
         val wallChance: Double = 0.30,
-        val riskChance: Double = 0.08,
+        val ambientRiskChance: Double = 0.05,
+        val oilChance: Double = 0.05,
+        val waterChance: Double = 0.05,
+        val sparkChance: Double = 0.05,
         val maxAttempts: Int = 200,
         val validator: PathValidationConfig = PathValidationConfig()
     )
@@ -38,8 +41,7 @@ object LevelGenerator {
                 tiles[y][x] = when {
                     border -> Tile.WALL
                     rng.nextDouble() < config.wallChance -> Tile.WALL
-                    rng.nextDouble() < config.riskChance -> Tile.RISK
-                    else -> Tile.FLOOR
+                    else -> rollEnvironment(rng, config)
                 }
             }
         }
@@ -50,6 +52,19 @@ object LevelGenerator {
         tiles[exit.y][exit.x] = Tile.EXIT
 
         return Level(config.width, config.height, seed, tiles, entry, exit)
+    }
+
+    private fun rollEnvironment(rng: Random, config: Config): Tile {
+        val roll = rng.nextDouble()
+        var acc = config.ambientRiskChance
+        if (roll < acc) return Tile.RISK
+        acc += config.oilChance
+        if (roll < acc) return Tile.OIL
+        acc += config.waterChance
+        if (roll < acc) return Tile.WATER
+        acc += config.sparkChance
+        if (roll < acc) return Tile.SPARK
+        return Tile.FLOOR
     }
 
     private fun buildCorridorFallback(seed: Long, config: Config): Level {
@@ -65,9 +80,15 @@ object LevelGenerator {
             tiles[y][1] = Tile.FLOOR
             tiles[y][config.width - 2] = Tile.FLOOR
         }
+
         for (x in 2 until config.width - 2 step 4) {
             for (y in 2 until config.height - 2) {
-                if ((x + y) % 7 == 0) tiles[y][x] = Tile.RISK
+                tiles[y][x] = when ((x + y) % 9) {
+                    0 -> Tile.OIL
+                    3 -> Tile.WATER
+                    6 -> Tile.SPARK
+                    else -> Tile.RISK
+                }
             }
         }
 
@@ -82,7 +103,10 @@ object LevelGenerator {
 
     fun configFor(profile: DifficultyProfile): Config = Config(
         wallChance = profile.wallChance,
-        riskChance = profile.riskChance,
+        ambientRiskChance = profile.env.ambientRiskChance,
+        oilChance = profile.env.oilChance,
+        waterChance = profile.env.waterChance,
+        sparkChance = profile.env.sparkChance,
         validator = PathValidationConfig(
             minDisjointPaths = profile.minDisjointPaths,
             mode = if (profile.useNodeDisjoint) DisjointMode.NODE else DisjointMode.EDGE

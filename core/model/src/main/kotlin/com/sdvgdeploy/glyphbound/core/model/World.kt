@@ -5,7 +5,11 @@ enum class Tile(val glyph: Char, val walkable: Boolean, val risk: Int = 0) {
     WALL('#', false),
     ENTRY('S', true),
     EXIT('E', true),
-    RISK('~', true, risk = 1)
+    RISK('~', true, risk = 1),
+    OIL('o', true, risk = 0),
+    WATER('w', true, risk = 0),
+    SPARK('*', true, risk = 1),
+    FIRE('f', true, risk = 2)
 }
 
 data class Pos(val x: Int, val y: Int)
@@ -23,6 +27,15 @@ data class Level(
     fun isWalkable(pos: Pos): Boolean = inBounds(pos) && tileAt(pos).walkable
 }
 
+enum class EnvEffectType { IGNITION, SHOCK }
+
+data class EnvEffect(
+    val type: EnvEffectType,
+    val turnsLeft: Int,
+    val intensity: Int,
+    val source: String
+)
+
 data class GameState(
     val level: Level,
     val player: Pos,
@@ -31,7 +44,9 @@ data class GameState(
     val moves: Int = 0,
     val finished: Boolean = false,
     val won: Boolean = false,
-    val message: String = "Reach E"
+    val message: String = "Reach E",
+    val messageLog: List<String> = listOf("Reach E"),
+    val envEffects: List<EnvEffect> = emptyList()
 )
 
 enum class Direction { UP, DOWN, LEFT, RIGHT }

@@ -1,0 +1,64 @@
+name: Android Release Lane
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Run tests
+        run: ./gradlew test
+
+      - name: Build unsigned release APK (baseline)
+        run: ./gradlew :app:assembleRelease
+
+      - name: Optional signed release step (signing-ready skeleton)
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > signing-keystore.jks
+          ./gradlew :app:assembleRelease
+          rm -f signing-keystore.jks
+
+      - name: Generate baseline changelog
+        id: changelog
+        run: |
+          chmod +x scripts/generate_changelog.sh
+          scripts/generate_changelog.sh > CHANGELOG_AUTO.md
+          {
+            echo "notes<<'EOF'"
+            cat CHANGELOG_AUTO.md
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release with APK
+        uses: softprops/action-gh-release@v2
+        with:
+          body: ${{ steps.changelog.outputs.notes }}
+          files: |
+            app/build/outputs/apk/release/app-release-unsigned.apk
