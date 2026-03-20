@@ -153,7 +153,7 @@ class GameRulesTest {
 
     @Test
     fun deterministicFuzzSweep_seedSpaceInvariants() {
-        val seedsPerProfile = 400
+        val seedsPerProfile = 500
         val intents = listOf(Direction.RIGHT, Direction.RIGHT, Direction.LEFT, Direction.DOWN, Direction.UP, Direction.LEFT)
 
         DifficultyProfile.entries.forEach { profile ->
@@ -181,6 +181,36 @@ class GameRulesTest {
                 assertTrue(a.hp in -200..profile.startingHp, "hp out of bounds: ${a.hp} for $profile/$seed")
                 assertEquals(a.hazardZones, b.hazardZones, "repro mismatch hazards $profile/$seed/v${profile.env.configVersion}")
                 assertEquals(a.hp, b.hp, "repro mismatch hp $profile/$seed/v${profile.env.configVersion}")
+            }
+        }
+    }
+
+    @Test
+    fun edgeSeedSuite_extremeProfilesStayBounded() {
+        val edgeSeeds = listOf(Long.MIN_VALUE, -1L, 0L, 1L, 42L, 999_999_999L, Long.MAX_VALUE)
+        val intents = listOf(Direction.RIGHT, Direction.DOWN, Direction.LEFT, Direction.UP, Direction.RIGHT)
+
+        DifficultyProfile.entries.forEach { profile ->
+            edgeSeeds.forEach { seed ->
+                var state = stateFrom(
+                    rows = listOf(
+                        "#########",
+                        "#Sooow*E#",
+                        "#~oow~..#",
+                        "#########"
+                    ),
+                    profile = profile,
+                    seed = seed
+                )
+
+                intents.forEach { direction ->
+                    state = step(state, direction)
+                }
+
+                val maxConfiguredTtl = profile.env.fireZoneTtl.coerceAtLeast(profile.env.shockZoneTtl)
+                assertTrue(state.hazardZones.size <= 40, "hazard zones runaway edge $profile/$seed")
+                assertTrue(state.hazardZones.all { it.ttl in 1..maxConfiguredTtl }, "ttl out of bounds edge $profile/$seed")
+                assertTrue(state.hp in -200..profile.startingHp, "hp out of bounds edge $profile/$seed")
             }
         }
     }

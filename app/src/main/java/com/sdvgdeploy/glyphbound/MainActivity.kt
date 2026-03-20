@@ -12,6 +12,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.sdvgdeploy.glyphbound.core.model.DifficultyProfile
 import com.sdvgdeploy.glyphbound.core.model.Direction
+import com.sdvgdeploy.glyphbound.core.model.HudRenderModel
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -54,9 +55,21 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { ui ->
-                    val reproKey = "${ui.seed}:${ui.profile.name}:v${ui.profile.env.configVersion}"
                     val effectSummary = if (ui.envEffects.isEmpty()) "none" else ui.envEffects.joinToString { "${it.type.name.lowercase()}:${it.turnsLeft}" }
-                    hudText.text = "HP ${ui.hp}   Seed $reproKey   Steps ${ui.steps}   FX $effectSummary   ${ui.hazardSummary}"
+                    val isSmallScreen = resources.configuration.smallestScreenWidthDp in 0..359
+                    hudText.text = HudRenderModel.render(
+                        HudRenderModel.Input(
+                            hp = ui.hp,
+                            seed = ui.seed,
+                            profile = ui.profile.name,
+                            configVersion = ui.profile.env.configVersion,
+                            steps = ui.steps,
+                            effectSummary = effectSummary,
+                            hazardSummary = ui.hazardSummary,
+                            highContrast = ui.highContrast,
+                            smallScreen = isSmallScreen
+                        )
+                    )
                     profileButton.text = ui.profile.name
                     messageText.text = ui.messageLog.lastOrNull() ?: "Move"
                     mapView.render(buffer = ui.map, highContrast = ui.highContrast)

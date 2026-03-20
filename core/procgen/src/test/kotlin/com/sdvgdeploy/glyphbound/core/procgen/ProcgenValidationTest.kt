@@ -59,6 +59,16 @@ class ProcgenValidationTest {
     }
 
     @Test
+    fun seedMix_includesProfileAndConfigVersion() {
+        val seed = 123L
+        val easy = LevelGenerator.seedWithProfile(seed, DifficultyProfile.EASY)
+        val hard = LevelGenerator.seedWithProfile(seed, DifficultyProfile.HARD)
+
+        assertTrue(easy != hard)
+        assertTrue(easy != seed)
+    }
+
+    @Test
     fun property_determinism_onDeterministicSeedSpace() {
         DifficultyProfile.entries.forEach { profile ->
             fixedSeeds(profile, seedsPerProfile).forEach { seed ->

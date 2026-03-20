@@ -1,0 +1,68 @@
+{
+  "configVersion": 1,
+  "profiles": {
+    "EASY": {
+      "wallChance": 0.24,
+      "minDisjointPaths": 2,
+      "useNodeDisjoint": false,
+      "startingHp": 14,
+      "env": {
+        "ambientRiskChance": 0.03,
+        "oilChance": 0.03,
+        "waterChance": 0.07,
+        "sparkChance": 0.03,
+        "hazardDamageMultiplier": 1,
+        "ignitionTurns": 2,
+        "ignitionTickDamage": 1,
+        "shockTurns": 1,
+        "shockTickDamage": 1,
+        "fireZoneTtl": 2,
+        "shockZoneTtl": 2,
+        "fireSpreadProfile": { "spreadChance": 0.35, "maxTargets": 1, "maxChainDepth": 1 },
+        "shockSpreadProfile": { "spreadChance": 0.30, "maxTargets": 1, "maxChainDepth": 1 }
+      }
+    },
+    "NORMAL": {
+      "wallChance": 0.30,
+      "minDisjointPaths": 2,
+      "useNodeDisjoint": false,
+      "startingHp": 10,
+      "env": {
+        "ambientRiskChance": 0.05,
+        "oilChance": 0.05,
+        "waterChance": 0.05,
+        "sparkChance": 0.05,
+        "hazardDamageMultiplier": 1,
+        "ignitionTurns": 2,
+        "ignitionTickDamage": 2,
+        "shockTurns": 2,
+        "shockTickDamage": 1,
+        "fireZoneTtl": 3,
+        "shockZoneTtl": 2,
+        "fireSpreadProfile": { "spreadChance": 0.55, "maxTargets": 2, "maxChainDepth": 2 },
+        "shockSpreadProfile": { "spreadChance": 0.40, "maxTargets": 2, "maxChainDepth": 1 }
+      }
+    },
+    "HARD": {
+      "wallChance": 0.36,
+      "minDisjointPaths": 2,
+      "useNodeDisjoint": true,
+      "startingHp": 8,
+      "env": {
+        "ambientRiskChance": 0.07,
+        "oilChance": 0.07,
+        "waterChance": 0.04,
+        "sparkChance": 0.07,
+        "hazardDamageMultiplier": 2,
+        "ignitionTurns": 3,
+        "ignitionTickDamage": 2,
+        "shockTurns": 2,
+        "shockTickDamage": 2,
+        "fireZoneTtl": 4,
+        "shockZoneTtl": 3,
+        "fireSpreadProfile": { "spreadChance": 0.75, "maxTargets": 3, "maxChainDepth": 2 },
+        "shockSpreadProfile": { "spreadChance": 0.65, "maxTargets": 2, "maxChainDepth": 2 }
+      }
+    }
+  }
+}

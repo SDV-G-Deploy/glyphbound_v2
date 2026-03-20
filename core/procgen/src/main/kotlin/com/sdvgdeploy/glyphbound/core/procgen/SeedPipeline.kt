@@ -98,7 +98,9 @@ object LevelGenerator {
     }
 
     fun seedWithProfile(seed: Long, profile: DifficultyProfile): Long {
-        return seed xor ((profile.ordinal.toLong() + 1L) shl 48)
+        val profileBits = (profile.ordinal.toLong() + 1L) shl 48
+        val versionBits = (profile.env.configVersion.toLong() and 0xFFFFL) shl 32
+        return seed xor profileBits xor versionBits
     }
 
     fun configFor(profile: DifficultyProfile): Config = Config(

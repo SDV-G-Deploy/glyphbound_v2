@@ -1,5 +1,9 @@
 package com.sdvgdeploy.glyphbound.core.model
 
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
 data class SpreadProfile(
     val spreadChance: Double,
     val maxTargets: Int,
@@ -31,12 +35,22 @@ data class ProfileTuning(
     val env: EnvTuning
 )
 
-private data class SpreadProfileConfig(
-    val spreadChance: Double,
-    val maxTargets: Int,
-    val maxChainDepth: Int
+@Serializable
+private data class TuningCatalogFile(
+    val configVersion: Int,
+    val profiles: Map<String, ProfileTuningConfig>
 )
 
+@Serializable
+private data class ProfileTuningConfig(
+    val wallChance: Double,
+    val minDisjointPaths: Int,
+    val useNodeDisjoint: Boolean,
+    val startingHp: Int,
+    val env: EnvTuningConfig
+)
+
+@Serializable
 private data class EnvTuningConfig(
     val ambientRiskChance: Double,
     val oilChance: Double,
@@ -53,40 +67,36 @@ private data class EnvTuningConfig(
     val shockSpreadProfile: SpreadProfileConfig
 )
 
-private data class ProfileTuningConfig(
-    val wallChance: Double,
-    val minDisjointPaths: Int,
-    val useNodeDisjoint: Boolean,
-    val startingHp: Int,
-    val env: EnvTuningConfig
+@Serializable
+private data class SpreadProfileConfig(
+    val spreadChance: Double,
+    val maxTargets: Int,
+    val maxChainDepth: Int
 )
 
+private interface ConfigMigrator {
+    fun canMigrate(version: Int): Boolean
+    fun migrate(raw: String): String
+}
+
+private object BaselineV1Migrator : ConfigMigrator {
+    override fun canMigrate(version: Int): Boolean = version == 1
+    override fun migrate(raw: String): String = raw
+}
+
 object DifficultyTuningCatalog {
-    const val CONFIG_VERSION: Int = 2
+    const val CONFIG_VERSION: Int = 1
+    private const val RESOURCE_PATH = "assets/tuning/profiles.v1.json"
 
-    private val fallback = ProfileTuningConfig(
-        wallChance = 0.30,
-        minDisjointPaths = 2,
-        useNodeDisjoint = false,
-        startingHp = 10,
-        env = EnvTuningConfig(
-            ambientRiskChance = 0.05,
-            oilChance = 0.05,
-            waterChance = 0.05,
-            sparkChance = 0.05,
-            hazardDamageMultiplier = 1,
-            ignitionTurns = 2,
-            ignitionTickDamage = 2,
-            shockTurns = 2,
-            shockTickDamage = 1,
-            fireZoneTtl = 3,
-            shockZoneTtl = 2,
-            fireSpreadProfile = SpreadProfileConfig(spreadChance = 0.55, maxTargets = 2, maxChainDepth = 2),
-            shockSpreadProfile = SpreadProfileConfig(spreadChance = 0.40, maxTargets = 2, maxChainDepth = 1)
-        )
-    )
+    private val json = Json {
+        ignoreUnknownKeys = false
+        isLenient = false
+        explicitNulls = false
+    }
 
-    private val rawByProfile: Map<String, ProfileTuningConfig> = mapOf(
+    private val migrators: List<ConfigMigrator> = listOf(BaselineV1Migrator)
+
+    private val safeDefaults: Map<String, ProfileTuningConfig> = mapOf(
         "EASY" to ProfileTuningConfig(
             wallChance = 0.24,
             minDisjointPaths = 2,
@@ -108,7 +118,27 @@ object DifficultyTuningCatalog {
                 shockSpreadProfile = SpreadProfileConfig(spreadChance = 0.30, maxTargets = 1, maxChainDepth = 1)
             )
         ),
-        "NORMAL" to fallback,
+        "NORMAL" to ProfileTuningConfig(
+            wallChance = 0.30,
+            minDisjointPaths = 2,
+            useNodeDisjoint = false,
+            startingHp = 10,
+            env = EnvTuningConfig(
+                ambientRiskChance = 0.05,
+                oilChance = 0.05,
+                waterChance = 0.05,
+                sparkChance = 0.05,
+                hazardDamageMultiplier = 1,
+                ignitionTurns = 2,
+                ignitionTickDamage = 2,
+                shockTurns = 2,
+                shockTickDamage = 1,
+                fireZoneTtl = 3,
+                shockZoneTtl = 2,
+                fireSpreadProfile = SpreadProfileConfig(spreadChance = 0.55, maxTargets = 2, maxChainDepth = 2),
+                shockSpreadProfile = SpreadProfileConfig(spreadChance = 0.40, maxTargets = 2, maxChainDepth = 1)
+            )
+        ),
         "HARD" to ProfileTuningConfig(
             wallChance = 0.36,
             minDisjointPaths = 2,
@@ -132,9 +162,57 @@ object DifficultyTuningCatalog {
         )
     )
 
+    @Volatile
+    private var loadedByProfile: Map<String, ProfileTuningConfig>? = null
+
     fun resolve(profileName: String): ProfileTuning {
-        val validated = validateProfile(rawByProfile[profileName] ?: fallback)
-        return toDomain(validated)
+        val loaded = loadedByProfile ?: loadCatalog().also { loadedByProfile = it }
+        val safeNormal = requireNotNull(safeDefaults["NORMAL"])
+        val tuned = loaded[profileName] ?: loaded["NORMAL"] ?: safeNormal
+        return toDomain(validateProfile(tuned))
+    }
+
+    internal fun resetForTests() {
+        loadedByProfile = null
+    }
+
+    internal fun loadFromRawForTests(raw: String): Result<Map<String, ProfileTuning>> = runCatching {
+        val parsed = parseWithVersionHandling(raw)
+        parsed.profiles.mapValues { (_, value) -> toDomain(validateProfile(value)) }
+    }
+
+    private fun loadCatalog(): Map<String, ProfileTuningConfig> {
+        return runCatching {
+            val raw = loadResource(RESOURCE_PATH)
+            val parsed = parseWithVersionHandling(raw)
+            val validated = parsed.profiles.mapValues { (_, value) -> validateProfile(value) }
+            safeDefaults + validated
+        }.getOrElse { err ->
+            println("[DifficultyTuningCatalog] fallback to safe defaults; reason=${err.message}")
+            safeDefaults
+        }
+    }
+
+    private fun parseWithVersionHandling(raw: String): TuningCatalogFile {
+        val lightweight = json.decodeFromString<VersionProbe>(raw)
+        if (lightweight.configVersion == CONFIG_VERSION) {
+            return json.decodeFromString(raw)
+        }
+        val migrator = migrators.firstOrNull { it.canMigrate(lightweight.configVersion) }
+            ?: throw IllegalArgumentException(
+                "Unsupported configVersion=${lightweight.configVersion}; supported=$CONFIG_VERSION"
+            )
+        println("[DifficultyTuningCatalog] migrating config v${lightweight.configVersion} -> v$CONFIG_VERSION")
+        return json.decodeFromString(migrator.migrate(raw))
+    }
+
+    @Serializable
+    private data class VersionProbe(@SerialName("configVersion") val configVersion: Int)
+
+    private fun loadResource(path: String): String {
+        val stream = DifficultyTuningCatalog::class.java.classLoader.getResourceAsStream(path)
+            ?: throw IllegalStateException("Missing tuning resource: $path")
+        return stream.bufferedReader().use { it.readText() }
     }
 
     private fun validateProfile(config: ProfileTuningConfig): ProfileTuningConfig {
