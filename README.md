@@ -2,6 +2,12 @@
 
 Android ASCII-like roguelite prototype with deterministic procedural generation and a ViewModel-driven state store.
 
+## Project documentation map
+- `PLAN.md` — short operational status: what is done, what is current, what is next.
+- `RECOVERY_PLAN.md` — keep/rework/split strategy after the previous oversized PR.
+- `DEVELOPMENT.md` — practical working rules for JDK 17, Android SDK bootstrap, and PR/doc hygiene.
+- `roadmap_raw_test_md_md.md` — long-form design and roadmap archive.
+
 ## Local environment prerequisites
 - **Java:** use **JDK 17** for Gradle/Android builds in this repo.
 - In this environment, the default `java` on `PATH` may point to a newer JDK (for example JDK 21), while this project is configured around Java 17 toolchains.
@@ -103,6 +109,8 @@ Or as a single command:
 ```bash
 bash scripts/bootstrap-android-env.sh && ./gradlew :app:assembleDebug
 ```
+
+For day-to-day development rules, see `DEVELOPMENT.md`.
 
 ## Release lane (existing flow, unchanged)
 Workflow: `.github/workflows/android-release.yml`

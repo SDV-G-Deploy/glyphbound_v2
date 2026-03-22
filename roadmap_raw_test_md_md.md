@@ -1,5 +1,9 @@
 # Glyphbound — roadmap and design analysis
 
+> Status note: this is a **long-form design/archive document**, not a line-by-line mirror of the current codebase.
+> Some sections below describe planned or earlier target states that have since been partially implemented in the repository.
+> For the current operational status and recovery strategy, see `PLAN.md` and `RECOVERY_PLAN.md`.
+
 ## Goal
 Evolve Glyphbound from a deterministic ASCII-like Android prototype into a deep ADOM-inspired tactical roguelite/roguelike while preserving a clear glyph-first interface, deterministic debugging, and mobile-friendly sessions.
 
