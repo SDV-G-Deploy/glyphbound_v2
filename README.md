@@ -6,6 +6,7 @@ Android ASCII-like roguelite prototype with deterministic procedural generation 
 - `PLAN.md` — short operational status: what is done, what is current, what is next.
 - `RECOVERY_PLAN.md` — keep/rework/split strategy after the previous oversized PR.
 - `DEVELOPMENT.md` — practical working rules for JDK 17, Android SDK bootstrap, and PR/doc hygiene.
+- `RELEASING.md` — product versioning, release tags, changelog, and schema-version rules.
 - `roadmap_raw_test_md_md.md` — long-form design and roadmap archive.
 
 ## Local environment prerequisites
@@ -111,11 +112,13 @@ bash scripts/bootstrap-android-env.sh && ./gradlew :app:assembleDebug
 ```
 
 For day-to-day development rules, see `DEVELOPMENT.md`.
+For product versioning and release rules, see `RELEASING.md`.
 
-## Release lane (existing flow, unchanged)
+## Release lane (existing flow)
 Workflow: `.github/workflows/android-release.yml`
 
 - Tag push `v*` runs tests and uploads one installable APK asset.
+- `versionName` in `app/build.gradle.kts` must match the pushed tag without the leading `v`.
 - If signing secrets exist → signed release APK.
 - If signing secrets are missing → debug-signed fallback APK (`app-debug.apk`, uploaded as `glyphbound-<tag>-debug.apk`).
 - Avoid `*-unsigned.apk` for device install: Android blocks unsigned packages.

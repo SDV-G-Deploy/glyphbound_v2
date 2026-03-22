@@ -29,11 +29,11 @@ Current state is best described as:
 - **pre-vertical-slice roguelite foundation**
 
 It is not yet a full roguelike loop because it still lacks:
-- enemies,
+- a mature enemy ecology,
 - real combat depth,
 - inventory/resources,
 - multi-floor / dungeon structure,
-- run progression,
+- fully realized run progression,
 - persistent save/meta progression,
 - meaningful long-term replay loops.
 
@@ -149,7 +149,7 @@ Glyphbound needs the following layers:
 ## 5.1 Enemies
 
 ### Current gap
-There are no enemies in the domain yet.
+A first enemy layer now exists in the repository, but it is still thin and should not yet be treated as a fully developed combat/ecology system.
 
 ### Goal
 Enemies should become the second major gameplay pillar next to hazards.

@@ -13,8 +13,8 @@ android {
         applicationId = "com.sdvgdeploy.glyphbound"
         minSdk = 24
         targetSdk = 34
-        versionCode = 9
-        versionName = "0.2.5"
+        versionCode = 10
+        versionName = "0.2.6"
     }
 
     val keystoreBase64 = System.getenv("ANDROID_KEYSTORE_BASE64")
