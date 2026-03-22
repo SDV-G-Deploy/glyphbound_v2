@@ -74,6 +74,7 @@ Reason: these are strategically aligned with the long-term product direction.
 - Keep a short plan (`PLAN.md`).
 - Keep the long-form design archive (`roadmap_raw_test_md_md.md`).
 - Keep environment/setup guidance in docs.
+- Keep release/versioning rules in a dedicated document.
 
 Reason: the project now clearly needs both short operational docs and long-term design docs.
 
@@ -215,8 +216,9 @@ After every meaningful milestone/PR:
    - what is in progress,
    - what is next;
 2. update `README.md` only if setup/run instructions changed;
-3. update `roadmap_raw_test_md_md.md` only for long-form design revisions;
-4. update this file if the keep/rework/split strategy changes.
+3. update `RELEASING.md` if versioning, changelog, or release flow changed;
+4. update `roadmap_raw_test_md_md.md` only for long-form design revisions;
+5. update this file if the keep/rework/split strategy changes.
 
 ---
 

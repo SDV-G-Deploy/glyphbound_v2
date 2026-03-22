@@ -71,6 +71,7 @@ If a milestone changes the actual project state, update:
 - `README.md` if setup/run instructions changed,
 - `RECOVERY_PLAN.md` if the keep/rework/split strategy changed,
 - `roadmap_raw_test_md_md.md` only for large design/roadmap revisions.
+- `RELEASING.md` when product versioning, release tags, changelog policy, or schema-version rules change.
 
 ### 4.3 Treat current run/progression systems as early scaffold
 The repo already contains:
@@ -97,3 +98,14 @@ That means the safest near-term work is:
 - simplification where needed,
 - focused vertical-slice improvements,
 - better documentation discipline.
+
+
+---
+
+## 6. Versioning / release discipline
+
+- Product version (`versionName`) and git release tag must stay synchronized.
+- Android `versionCode` should increase for each installable release.
+- Tuning `configVersion` is a schema/versioning concern for config compatibility, not a substitute for product version.
+- Future save compatibility must use its own save schema version when save/load is introduced.
+- See `RELEASING.md` for the full release checklist and policy.
