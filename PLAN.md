@@ -20,8 +20,19 @@
 
 ## Что ещё предстоит
 - Доработать enemy/combat loop: richer enemy roles, hazard synergy, death/loot/reward flow, encounter pacing.
+- В репозитории уже есть расширенный дизайн-роадмап с целевым развитием проекта.
+
+## Что делаем сейчас
+- Приводим план обратно к явному, поддерживаемому артефакту в репозитории после замечания по предыдущему PR.
+- Синхронизируем короткий статусный план с уже существующим большим roadmap-документом.
+- Фиксируем следующий ближайший фокус: довести encounter-loop до более цельного vertical slice, а не просто наращивать список систем.
+- Уточняем статус текущего vertical slice: базовый run graph, branch choice, enemy phase и HUD уже есть, но слой наград/ресурсов/пост-боя ещё не доведён до полноценного run loop.
+
+## Что ещё предстоит
+- Доработать enemy/combat loop: richer enemy roles, telegraphing, death/loot/reward flow, encounter pacing.
 - Развить run progression: осмысленные branch consequences, типы узлов, награды, recovery/event/shop layers.
 - Добавить inventory/resources/perks/build choices, чтобы route choice влиял на стиль прохождения.
 - Продумать persistence/save/meta progression и DTO/state serialization.
 - Улучшить UI/UX: лучшее объяснение intents, branch choice, состояния run и post-combat transitions.
 - Поддерживать `PLAN.md`, `RECOVERY_PLAN.md`, `DEVELOPMENT.md` и `README.md` в актуальном состоянии при каждом заметном milestone/PR.
+- Поддерживать этот файл в актуальном состоянии при каждом заметном milestone/PR.
