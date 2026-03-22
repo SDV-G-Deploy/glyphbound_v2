@@ -1,7 +1,10 @@
 package com.sdvgdeploy.glyphbound.core.rules
 
 import com.sdvgdeploy.glyphbound.core.model.Direction
+import com.sdvgdeploy.glyphbound.core.model.Enemy
+import com.sdvgdeploy.glyphbound.core.model.EnemyArchetype
 import com.sdvgdeploy.glyphbound.core.model.DifficultyProfile
+import com.sdvgdeploy.glyphbound.core.model.EnemyIntent
 import com.sdvgdeploy.glyphbound.core.model.GameState
 import com.sdvgdeploy.glyphbound.core.model.HazardType
 import com.sdvgdeploy.glyphbound.core.model.HazardZone
@@ -13,6 +16,88 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class GameRulesTest {
+
+
+    @Test
+    fun refreshEnemyIntents_marksImmediateThreats() {
+        val state = stateFrom(
+            rows = listOf(
+                "########",
+                "#S.gs.E#",
+                "########"
+            ),
+            profile = DifficultyProfile.NORMAL,
+            enemies = listOf(
+                Enemy(id = "m0", pos = Pos(3, 1), archetype = EnemyArchetype.STALKER),
+                Enemy(id = "r0", pos = Pos(4, 1), archetype = EnemyArchetype.SPITTER)
+            )
+        )
+
+        val refreshed = refreshEnemyIntents(state)
+
+        assertEquals(EnemyIntent.ADVANCE, refreshed.enemies.first { it.id == "m0" }.intent)
+        assertEquals(EnemyIntent.RANGED_ATTACK, refreshed.enemies.first { it.id == "r0" }.intent)
+    }
+
+    @Test
+    fun movingIntoEnemy_attacksInsteadOfMoving() {
+        val initial = stateFrom(
+            rows = listOf(
+                "#####",
+                "#S.E#",
+                "#####"
+            ),
+            profile = DifficultyProfile.NORMAL,
+            enemies = listOf(Enemy(id = "e0", pos = Pos(2, 1), archetype = EnemyArchetype.STALKER, hp = 1))
+        )
+
+        val after = step(initial, Direction.RIGHT)
+
+        assertEquals(Pos(1, 1), after.player)
+        assertTrue(after.enemies.isEmpty())
+        assertTrue(after.message.contains("Slain stalker"))
+    }
+
+    @Test
+    fun enemyPhase_movesAndDealsContactDamage() {
+        val initial = stateFrom(
+            rows = listOf(
+                "#######",
+                "#S...E#",
+                "#.....#",
+                "#######"
+            ),
+            profile = DifficultyProfile.NORMAL,
+            enemies = listOf(Enemy(id = "e0", pos = Pos(3, 1), archetype = EnemyArchetype.STALKER))
+        )
+
+        val afterFirst = step(initial, Direction.DOWN)
+        val afterSecond = step(afterFirst, Direction.UP)
+
+        assertTrue(afterFirst.enemies.any { it.pos == Pos(2, 1) })
+        assertEquals(afterFirst.hp - EnemyArchetype.STALKER.contactDamage, afterSecond.hp)
+        assertTrue(afterSecond.message.contains("Enemy pressure"))
+    }
+
+
+    @Test
+    fun spitterUsesLineAttack_whenPlayerInSight() {
+        val initial = stateFrom(
+            rows = listOf(
+                "#######",
+                "#S..sE#",
+                "#######"
+            ),
+            profile = DifficultyProfile.NORMAL,
+            enemies = listOf(Enemy(id = "e0", pos = Pos(4, 1), archetype = EnemyArchetype.SPITTER))
+        )
+
+        val after = step(initial, Direction.RIGHT)
+
+        assertEquals(initial.hp - EnemyArchetype.SPITTER.contactDamage, after.hp)
+        assertTrue(after.enemies.any { it.pos == Pos(4, 1) })
+        assertTrue(after.message.contains("spitter spits"))
+    }
 
     @Test
     fun reducerMove_transitionIsPure() {
@@ -262,7 +347,8 @@ class GameRulesTest {
         rows: List<String>,
         profile: DifficultyProfile,
         seed: Long = 1L,
-        player: Pos? = null
+        player: Pos? = null,
+        enemies: List<Enemy> = emptyList()
     ): GameState {
         val tiles = rows.map { row ->
             row.map { ch ->
@@ -293,6 +379,6 @@ class GameRulesTest {
         }
 
         val level = Level(rows[0].length, rows.size, seed, tiles, entry, exit)
-        return GameState(level = level, player = player ?: entry, profile = profile, hp = profile.startingHp)
+        return GameState(level = level, player = player ?: entry, profile = profile, hp = profile.startingHp, enemies = enemies)
     }
 }

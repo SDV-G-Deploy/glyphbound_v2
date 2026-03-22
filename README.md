@@ -2,6 +2,49 @@
 
 Android ASCII-like roguelite prototype with deterministic procedural generation and a ViewModel-driven state store.
 
+## Project documentation map
+- `PLAN.md` — short operational status: what is done, what is current, what is next.
+- `RECOVERY_PLAN.md` — keep/rework/split strategy after the previous oversized PR.
+- `DEVELOPMENT.md` — practical working rules for JDK 17, Android SDK bootstrap, and PR/doc hygiene.
+- `roadmap_raw_test_md_md.md` — long-form design and roadmap archive.
+
+## Local environment prerequisites
+- **Java:** use **JDK 17** for Gradle/Android builds in this repo.
+- In this environment, the default `java` on `PATH` may point to a newer JDK (for example JDK 21), while this project is configured around Java 17 toolchains.
+- If Gradle fails even though JDK 17 is installed, explicitly switch before running checks:
+  ```bash
+  export JAVA_HOME=/root/.local/share/mise/installs/java/17.0.2
+  export PATH="$JAVA_HOME/bin:$PATH"
+  java -version
+  ./gradlew -version
+  ```
+- **Android SDK:** app tasks such as `:app:testDebugUnitTest` and `:app:assembleDebug` also require a valid SDK location.
+  - Fast path for Codex/runner environments:
+    ```bash
+    bash scripts/bootstrap-android-env.sh
+    ```
+  - Either set `ANDROID_HOME`, or
+  - create `local.properties` with:
+    ```properties
+    sdk.dir=/absolute/path/to/Android/Sdk
+    ```
+
+### Quick local check order
+1. Point `JAVA_HOME` to JDK 17.
+2. Confirm `java -version` prints 17.x.
+3. Ensure Android SDK is configured (`ANDROID_HOME` or `local.properties`).
+4. Run JVM-only checks first:
+   ```bash
+   ./gradlew :core:model:test :core:rules:test :core:procgen:test
+   ```
+5. Then run Android/app checks:
+   ```bash
+   bash scripts/bootstrap-android-env.sh
+   ./gradlew :app:compileDebugKotlin
+   ./gradlew test
+   ./gradlew :app:assembleDebug
+   ```
+
 ## V2-6 highlights
 - **Persistent hazard damage balancing (P0):**
   - Added per-profile cap `persistentDamageCapPerTurn` to prevent runaway burst damage from stacked zones.
@@ -41,6 +84,33 @@ Android ASCII-like roguelite prototype with deterministic procedural generation 
 ./gradlew :core:rules:test --tests "*edgeSeedSuite_extremeProfilesStayBounded"
 ./gradlew :core:procgen:test --tests "*property_*"
 ```
+
+## Codespaces / devcontainer Android SDK setup
+- Devcontainer sets `ANDROID_SDK_ROOT`/`ANDROID_HOME` to `${containerWorkspaceFolder}/.android-sdk`.
+- On container create, these scripts run automatically:
+  - `.devcontainer/scripts/setup-android-sdk.sh` — installs Android command-line tools + platform/build-tools for API 34.
+  - `.devcontainer/scripts/ensure-local-properties.sh` — writes `local.properties` with `sdk.dir=<workspace>/.android-sdk`.
+- This keeps `local.properties` out of git while ensuring AGP always sees a valid SDK path in Codespaces.
+
+If you need to re-run manually:
+```bash
+bash .devcontainer/scripts/setup-android-sdk.sh
+bash .devcontainer/scripts/ensure-local-properties.sh
+./gradlew :app:compileDebugKotlin
+```
+
+If your runner (e.g. Codex shell) does **not** execute devcontainer `postCreateCommand`, run a one-shot bootstrap first:
+```bash
+bash scripts/bootstrap-android-env.sh
+./gradlew :app:assembleDebug
+```
+
+Or as a single command:
+```bash
+bash scripts/bootstrap-android-env.sh && ./gradlew :app:assembleDebug
+```
+
+For day-to-day development rules, see `DEVELOPMENT.md`.
 
 ## Release lane (existing flow, unchanged)
 Workflow: `.github/workflows/android-release.yml`

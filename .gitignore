@@ -4,4 +4,6 @@
 .DS_Store
 /build/
 */build/
+**/build/
 *.iml
+/.android-sdk/

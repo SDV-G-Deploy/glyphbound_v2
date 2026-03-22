@@ -23,6 +23,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var hudText: TextView
     private lateinit var messageText: TextView
     private lateinit var profileButton: Button
+    private lateinit var rewardAButton: Button
+    private lateinit var rewardBButton: Button
+    private lateinit var branchAButton: Button
+    private lateinit var branchBButton: Button
 
     private var touchStartX = 0f
     private var touchStartY = 0f
@@ -36,6 +40,10 @@ class MainActivity : AppCompatActivity() {
         hudText = findViewById(R.id.hudText)
         messageText = findViewById(R.id.messageText)
         profileButton = findViewById(R.id.profileButton)
+        rewardAButton = findViewById(R.id.rewardAButton)
+        rewardBButton = findViewById(R.id.rewardBButton)
+        branchAButton = findViewById(R.id.branchAButton)
+        branchBButton = findViewById(R.id.branchBButton)
 
         val baseSeed = intent?.getLongExtra("seed", 1337L) ?: 1337L
         val profile = DifficultyProfile.fromRaw(intent?.getStringExtra("profile"))
@@ -50,6 +58,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         profileButton.setOnClickListener { viewModel.dispatch(GameIntent.CycleProfile) }
+        rewardAButton.setOnClickListener { chooseReward(0) }
+        rewardBButton.setOnClickListener { chooseReward(1) }
+        branchAButton.setOnClickListener { chooseBranch(0) }
+        branchBButton.setOnClickListener { chooseBranch(1) }
         mapView.setOnTouchListener { _, event -> handleSwipe(event) }
 
         lifecycleScope.launch {
@@ -64,20 +76,65 @@ class MainActivity : AppCompatActivity() {
                             profile = ui.profile.name,
                             configVersion = ui.profile.env.configVersion,
                             steps = ui.steps,
+                            nodeLabel = ui.nodeLabel,
+                            progressionSummary = ui.progressionSummary,
                             effectSummary = effectSummary,
                             hazardSummary = ui.hazardSummary,
+                            enemyIntentSummary = ui.enemyIntentSummary,
                             highContrast = ui.highContrast,
                             smallScreen = isSmallScreen
                         )
                     )
                     profileButton.text = ui.profile.name
                     messageText.text = ui.messageLog.lastOrNull() ?: "Move"
+                    bindRewardButtons(ui.rewardChoices)
+                    bindBranchButtons(ui.branchChoices)
                     mapView.render(buffer = ui.map, highContrast = ui.highContrast)
                 }
             }
         }
 
         viewModel.dispatch(GameIntent.Start(seed = baseSeed, profile = profile))
+    }
+
+    private fun bindBranchButtons(branchChoices: List<BranchChoiceUiModel>) {
+        val buttons = listOf(branchAButton, branchBButton)
+        buttons.forEachIndexed { index, button ->
+            val choice = branchChoices.getOrNull(index)
+            if (choice == null) {
+                button.visibility = android.view.View.GONE
+            } else {
+                button.visibility = android.view.View.VISIBLE
+                button.text = choice.label
+                button.tag = choice.nodeId
+            }
+        }
+    }
+
+    private fun bindRewardButtons(rewardChoices: List<RewardChoiceUiModel>) {
+        val buttons = listOf(rewardAButton, rewardBButton)
+        buttons.forEachIndexed { index, button ->
+            val choice = rewardChoices.getOrNull(index)
+            if (choice == null) {
+                button.visibility = android.view.View.GONE
+            } else {
+                button.visibility = android.view.View.VISIBLE
+                button.text = "${choice.label}\n${choice.description}"
+                button.tag = choice.type
+            }
+        }
+    }
+
+    private fun chooseReward(index: Int) {
+        val button = if (index == 0) rewardAButton else rewardBButton
+        val rewardType = button.tag as? com.sdvgdeploy.glyphbound.core.model.RewardType ?: return
+        viewModel.dispatch(GameIntent.ChooseReward(rewardType))
+    }
+
+    private fun chooseBranch(index: Int) {
+        val button = if (index == 0) branchAButton else branchBButton
+        val nodeId = button.tag as? String ?: return
+        viewModel.dispatch(GameIntent.ChooseBranch(nodeId))
     }
 
     private fun handleSwipe(event: MotionEvent): Boolean {

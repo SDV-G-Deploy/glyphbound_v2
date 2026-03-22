@@ -1,0 +1,17 @@
+{
+  "name": "Glyphbound Java 17 + Gradle",
+  "image": "mcr.microsoft.com/devcontainers/java:1-17-bookworm",
+  "containerEnv": {
+    "ANDROID_SDK_ROOT": "${containerWorkspaceFolder}/.android-sdk",
+    "ANDROID_HOME": "${containerWorkspaceFolder}/.android-sdk"
+  },
+  "postCreateCommand": "bash .devcontainer/scripts/setup-android-sdk.sh && bash .devcontainer/scripts/ensure-local-properties.sh && ./gradlew --version",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vscjava.vscode-java-pack",
+        "vscjava.vscode-gradle"
+      ]
+    }
+  }
+}
