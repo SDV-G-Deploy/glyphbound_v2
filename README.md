@@ -1,4 +1,4 @@
-# Glyphbound (v0.2.6)
+# Glyphbound (v0.2.7)
 
 Android ASCII-like roguelite prototype with deterministic procedural generation and a ViewModel-driven state store.
 
