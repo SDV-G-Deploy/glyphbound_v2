@@ -105,7 +105,7 @@ class MainActivity : AppCompatActivity() {
                 button.visibility = android.view.View.GONE
             } else {
                 button.visibility = android.view.View.VISIBLE
-                button.text = choice.label
+                button.text = "${choice.label}\n${choice.description}"
                 button.tag = choice.nodeId
             }
         }

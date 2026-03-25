@@ -76,6 +76,24 @@ class RunStateTest {
 
         assertEquals(run.progression.salvage + 1, salvaged.progression.salvage)
         assertTrue("SPARK_CORE" in sparked.progression.unlockedTraits)
+        assertEquals("-1 foe", salvaged.pendingNodeRewardSummary())
+        assertEquals("+1 HP", sparked.pendingNodeRewardSummary())
         assertEquals(7, run.applyRewardToHp(RewardType.MEND, 5))
+    }
+
+    @Test
+    fun pendingNodeRewardEffects_areConsumedOnNodeEntry() {
+        val run = RunState.initial(77L)
+            .completeCurrent()
+            .advanceTo("path_a")
+            .applyReward(RewardType.SALVAGE)
+            .applyReward(RewardType.SPARK_CORE)
+
+        val consumed = run.consumePendingNodeRewardEffects()
+
+        assertEquals(1, consumed.enemyReduction)
+        assertEquals(1, consumed.hpBonus)
+        assertTrue(consumed.updatedRun.pendingNodeRewardEffects.isEmpty())
+        assertEquals("+1 HP, -1 foe", consumed.summary())
     }
 }

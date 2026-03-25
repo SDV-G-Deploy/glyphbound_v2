@@ -47,6 +47,15 @@ Android ASCII-like roguelite prototype with deterministic procedural generation 
    ```
 
 ## V2-6 highlights
+- **Post-combat reward momentum (vertical-slice refinement):**
+  - `SALVAGE` now grants `+1 salvage` **and** a next-node scouting effect (`-1 enemy` on entry, deterministic, consumed once).
+  - `SPARK_CORE` now unlocks trait **and** grants `+1 HP` on next node entry (consumed once).
+  - Reward choice text now explicitly states immediate vs next-node consequences.
+
+- **Branch/reward UX wording cleanup:**
+  - Branch buttons now use player-facing labels (`Combat • Ember`, etc.) with short consequence hints.
+  - Progression summary now exposes pending next-node reward effects (`NX ...`) so carryover is visible.
+
 - **Persistent hazard damage balancing (P0):**
   - Added per-profile cap `persistentDamageCapPerTurn` to prevent runaway burst damage from stacked zones.
   - Applied in `tickHazards` as a deterministic clamp (no random branches, no extra allocations).
@@ -60,8 +69,8 @@ Android ASCII-like roguelite prototype with deterministic procedural generation 
   - Validation ranges added in catalog loader with safe default fallback retained.
 
 - **Regression coverage update:**
-  - New rules test for mixed hazard cap behavior.
-  - Catalog bounds test expanded to include new tuning fields.
+  - New run-state tests cover queued reward effects and consume-on-entry behavior.
+  - Existing rules/catalog coverage from previous milestone remains in place.
 
 ## Modules
 - `app` — Android UI/input/render loop + `GameViewModel`

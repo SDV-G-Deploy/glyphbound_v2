@@ -3,6 +3,9 @@ package com.sdvgdeploy.glyphbound
 import androidx.lifecycle.ViewModel
 import com.sdvgdeploy.glyphbound.core.model.DifficultyProfile
 import com.sdvgdeploy.glyphbound.core.model.Direction
+import com.sdvgdeploy.glyphbound.core.model.DungeonNode
+import com.sdvgdeploy.glyphbound.core.model.DungeonNodeType
+import com.sdvgdeploy.glyphbound.core.model.DungeonTheme
 import com.sdvgdeploy.glyphbound.core.model.Enemy
 import com.sdvgdeploy.glyphbound.core.model.EnemyDirector
 import com.sdvgdeploy.glyphbound.core.model.EnvEffect
@@ -22,7 +25,8 @@ import kotlinx.coroutines.flow.asStateFlow
 
 data class BranchChoiceUiModel(
     val nodeId: String,
-    val label: String
+    val label: String,
+    val description: String
 )
 
 data class GameUiState(
@@ -97,10 +101,16 @@ class GameViewModel : ViewModel() {
             is GameIntent.ChooseReward -> {
                 val selected = pendingRewardChoices.firstOrNull { it.type == intent.type } ?: return
                 activeRun = activeRun.applyReward(selected.type)
+                val pendingSummary = activeRun.pendingNodeRewardSummary()
+                val rewardLine = if (pendingSummary == "none") {
+                    "Reward: ${selected.label}"
+                } else {
+                    "Reward: ${selected.label} (next: $pendingSummary)"
+                }
                 val rewardedState = coreState.copy(
                     hp = activeRun.applyRewardToHp(selected.type, coreState.hp),
-                    message = "Reward: ${selected.label}",
-                    messageLog = (coreState.messageLog + "Reward: ${selected.label}").takeLast(8)
+                    message = rewardLine,
+                    messageLog = (coreState.messageLog + rewardLine).takeLast(8)
                 )
                 pendingRewardChoices = emptyList()
                 coreState = advanceRun(rewardedState)
@@ -145,24 +155,76 @@ class GameViewModel : ViewModel() {
     }
 
     private fun bootstrap(run: RunState, profile: DifficultyProfile, carryHp: Int): GameState {
-        val node = run.currentNode()
+        val nodeEntryRewards = run.consumePendingNodeRewardEffects()
+        activeRun = nodeEntryRewards.updatedRun
+
+        val node = activeRun.currentNode()
         val level = LevelGenerator.generate(node.floorSeed, profile)
-        val intro = "${node.type.name.lowercase()} ${node.theme.name.lowercase()}"
-        return refreshEnemyIntents(GameState(
-            level = level,
-            player = level.entry,
-            profile = profile,
-            hp = carryHp,
-            message = intro,
-            messageLog = listOf("Reach E", intro),
-            enemies = EnemyDirector.spawnInitial(level, profile)
-        ))
+        val intro = "${node.type.displayName()} • ${node.theme.displayName()}"
+        val hpAtEntry = (carryHp + nodeEntryRewards.hpBonus).coerceAtLeast(1)
+
+        val spawnedEnemies = EnemyDirector.spawnInitial(level, profile)
+        val enemyReduction = reduceEnemiesForNodeStart(
+            enemies = spawnedEnemies,
+            reduction = nodeEntryRewards.enemyReduction,
+            nodeType = node.type
+        )
+
+        val entryEffects = buildList {
+            if (nodeEntryRewards.hpBonus > 0) add("Reward surge: +${nodeEntryRewards.hpBonus} HP")
+            if (enemyReduction.removedCount > 0) add("Reward scouting: -${enemyReduction.removedCount} foe")
+        }
+
+        return refreshEnemyIntents(
+            GameState(
+                level = level,
+                player = level.entry,
+                profile = profile,
+                hp = hpAtEntry,
+                message = entryEffects.lastOrNull() ?: intro,
+                messageLog = (listOf("Reach E", intro) + entryEffects).takeLast(8),
+                enemies = enemyReduction.enemies
+            )
+        )
+    }
+
+    private data class EnemyReductionResult(
+        val enemies: List<Enemy>,
+        val removedCount: Int
+    )
+
+    private fun reduceEnemiesForNodeStart(
+        enemies: List<Enemy>,
+        reduction: Int,
+        nodeType: DungeonNodeType
+    ): EnemyReductionResult {
+        if (reduction <= 0 || enemies.isEmpty()) return EnemyReductionResult(enemies = enemies, removedCount = 0)
+
+        val minimumEnemies = if (nodeType in setOf(DungeonNodeType.COMBAT, DungeonNodeType.ELITE, DungeonNodeType.BOSS)) 1 else 0
+        val removable = (enemies.size - minimumEnemies).coerceAtLeast(0)
+        val toRemove = reduction.coerceAtMost(removable)
+        if (toRemove <= 0) return EnemyReductionResult(enemies = enemies, removedCount = 0)
+
+        val idsToRemove = enemies
+            .sortedWith(
+                compareByDescending<Enemy> { it.archetype.contactDamage }
+                    .thenByDescending { it.archetype.maxHp }
+                    .thenBy { it.id }
+            )
+            .take(toRemove)
+            .map { it.id }
+            .toSet()
+
+        return EnemyReductionResult(
+            enemies = enemies.filterNot { it.id in idsToRemove },
+            removedCount = toRemove
+        )
     }
 
     private fun advanceRun(state: GameState): GameState {
         val completed = activeRun.completeCurrent()
         val nextNodes = completed.graph.neighbors(completed.graph.currentNodeId).filter { it.id !in completed.completedNodeIds }
-        if (nextNodes.isEmpty() || nextNodes.all { it.type == com.sdvgdeploy.glyphbound.core.model.DungeonNodeType.EXIT }) {
+        if (nextNodes.isEmpty() || nextNodes.all { it.type == DungeonNodeType.EXIT }) {
             activeRun = completed
             pendingBranchChoices = emptyList()
             return state.copy(
@@ -175,7 +237,7 @@ class GameViewModel : ViewModel() {
 
         if (nextNodes.size > 1) {
             activeRun = completed
-            pendingBranchChoices = nextNodes.map { BranchChoiceUiModel(it.id, it.title()) }
+            pendingBranchChoices = nextNodes.map(::toBranchChoice)
             return state.copy(
                 finished = true,
                 won = true,
@@ -188,8 +250,23 @@ class GameViewModel : ViewModel() {
         activeRun = completed.advanceTo(nextNode.id)
         pendingBranchChoices = emptyList()
         val nextState = bootstrap(activeRun, state.profile, carryHp = state.hp.coerceAtLeast(1))
-        val transition = "Advanced to ${nextNode.title()}"
+        val transition = "Advanced to ${nextNode.type.displayName()} • ${nextNode.theme.displayName()}"
         return nextState.copy(message = transition, messageLog = (state.messageLog + transition).takeLast(8))
+    }
+
+    private fun toBranchChoice(node: DungeonNode): BranchChoiceUiModel {
+        val label = "${node.type.displayName()} • ${node.theme.displayName()}"
+        val description = when (node.type) {
+            DungeonNodeType.COMBAT -> "Fight for a reward pick"
+            DungeonNodeType.ELITE -> "Hard fight, stronger reward"
+            DungeonNodeType.TREASURE -> "Safer detour, no combat reward"
+            DungeonNodeType.REST -> "Lower pressure recovery node"
+            DungeonNodeType.BOSS -> "Final fight before exit"
+            DungeonNodeType.SHRINE -> "Event node"
+            DungeonNodeType.ENTRY -> "Run start"
+            DungeonNodeType.EXIT -> "Leave the run"
+        }
+        return BranchChoiceUiModel(nodeId = node.id, label = label, description = description)
     }
 
     private fun onNodeCleared(state: GameState): GameState {
@@ -217,7 +294,7 @@ class GameViewModel : ViewModel() {
 
     private fun summarizeProgression(run: RunState): String {
         val traits = run.progression.unlockedTraits.size
-        return "PG L${run.progression.level} X${run.progression.experience} \$${run.progression.salvage} T$traits"
+        return "PG L${run.progression.level} X${run.progression.experience} \$${run.progression.salvage} T$traits NX ${run.pendingNodeRewardSummary()}"
     }
 
     private fun toUiState(gameState: GameState, highContrast: Boolean, seed: Long): GameUiState {
@@ -243,5 +320,24 @@ class GameViewModel : ViewModel() {
             won = gameState.won,
             highContrast = highContrast
         )
+    }
+
+    private fun DungeonNodeType.displayName(): String = when (this) {
+        DungeonNodeType.ENTRY -> "Entry"
+        DungeonNodeType.COMBAT -> "Combat"
+        DungeonNodeType.ELITE -> "Elite"
+        DungeonNodeType.TREASURE -> "Treasure"
+        DungeonNodeType.SHRINE -> "Shrine"
+        DungeonNodeType.REST -> "Rest"
+        DungeonNodeType.BOSS -> "Boss"
+        DungeonNodeType.EXIT -> "Exit"
+    }
+
+    private fun DungeonTheme.displayName(): String = when (this) {
+        DungeonTheme.NEUTRAL -> "Neutral"
+        DungeonTheme.EMBER -> "Ember"
+        DungeonTheme.FLOODED -> "Flooded"
+        DungeonTheme.BASTION -> "Bastion"
+        DungeonTheme.ROT -> "Rot"
     }
 }

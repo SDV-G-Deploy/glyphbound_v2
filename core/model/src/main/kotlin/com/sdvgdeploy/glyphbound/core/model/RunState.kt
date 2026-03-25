@@ -29,6 +29,34 @@ enum class RewardType {
     SPARK_CORE
 }
 
+enum class PendingNodeRewardEffectType {
+    HP_BOOST,
+    ENEMY_REDUCTION
+}
+
+data class PendingNodeRewardEffect(
+    val type: PendingNodeRewardEffectType,
+    val amount: Int,
+    val source: RewardType
+)
+
+data class NodeEntryRewardResolution(
+    val updatedRun: RunState,
+    val hpBonus: Int,
+    val enemyReduction: Int
+) {
+    fun isEmpty(): Boolean = hpBonus == 0 && enemyReduction == 0
+
+    fun summary(): String {
+        if (isEmpty()) return "none"
+        val parts = buildList {
+            if (hpBonus > 0) add("+$hpBonus HP")
+            if (enemyReduction > 0) add("-$enemyReduction foe")
+        }
+        return parts.joinToString(separator = ", ")
+    }
+}
+
 data class RewardChoice(
     val type: RewardType,
     val label: String,
@@ -92,6 +120,7 @@ data class RunState(
     val graph: DungeonGraph,
     val inventory: InventoryState = InventoryState(),
     val progression: PlayerProgressionState = PlayerProgressionState(),
+    val pendingNodeRewardEffects: List<PendingNodeRewardEffect> = emptyList(),
     val visitedNodeIds: Set<String> = setOf(graph.currentNodeId),
     val completedNodeIds: Set<String> = emptySet()
 ) {
@@ -105,17 +134,17 @@ data class RunState(
             RewardChoice(
                 type = RewardType.MEND,
                 label = "Field Mend",
-                description = "+2 HP carried into the next node"
+                description = "Recover +2 HP immediately"
             ),
             RewardChoice(
                 type = RewardType.SALVAGE,
                 label = "Salvage Cache",
-                description = "+1 salvage for later run progression"
+                description = "+1 salvage now and scout the next node (-1 enemy)"
             ),
             RewardChoice(
                 type = RewardType.SPARK_CORE,
                 label = "Spark Core",
-                description = "Unlocks SPARK_CORE trait for this run"
+                description = "Unlock SPARK_CORE and gain +1 HP at next node entry"
             )
         )
 
@@ -143,11 +172,22 @@ data class RunState(
     fun applyReward(type: RewardType): RunState = when (type) {
         RewardType.MEND -> this
         RewardType.SALVAGE -> copy(
-            progression = progression.copy(salvage = progression.salvage + 1)
+            progression = progression.copy(salvage = progression.salvage + 1),
+            pendingNodeRewardEffects = pendingNodeRewardEffects + PendingNodeRewardEffect(
+                type = PendingNodeRewardEffectType.ENEMY_REDUCTION,
+                amount = 1,
+                source = RewardType.SALVAGE
+            )
         )
+
         RewardType.SPARK_CORE -> copy(
             progression = progression.copy(
                 unlockedTraits = progression.unlockedTraits + "SPARK_CORE"
+            ),
+            pendingNodeRewardEffects = pendingNodeRewardEffects + PendingNodeRewardEffect(
+                type = PendingNodeRewardEffectType.HP_BOOST,
+                amount = 1,
+                source = RewardType.SPARK_CORE
             )
         )
     }
@@ -155,6 +195,41 @@ data class RunState(
     fun applyRewardToHp(type: RewardType, hp: Int): Int = when (type) {
         RewardType.MEND -> hp + 2
         RewardType.SALVAGE, RewardType.SPARK_CORE -> hp
+    }
+
+    fun consumePendingNodeRewardEffects(): NodeEntryRewardResolution {
+        if (pendingNodeRewardEffects.isEmpty()) {
+            return NodeEntryRewardResolution(updatedRun = this, hpBonus = 0, enemyReduction = 0)
+        }
+
+        val hpBonus = pendingNodeRewardEffects
+            .filter { it.type == PendingNodeRewardEffectType.HP_BOOST }
+            .sumOf { it.amount }
+
+        val enemyReduction = pendingNodeRewardEffects
+            .filter { it.type == PendingNodeRewardEffectType.ENEMY_REDUCTION }
+            .sumOf { it.amount }
+
+        return NodeEntryRewardResolution(
+            updatedRun = copy(pendingNodeRewardEffects = emptyList()),
+            hpBonus = hpBonus,
+            enemyReduction = enemyReduction
+        )
+    }
+
+    fun pendingNodeRewardSummary(): String {
+        if (pendingNodeRewardEffects.isEmpty()) return "none"
+        val hpBonus = pendingNodeRewardEffects
+            .filter { it.type == PendingNodeRewardEffectType.HP_BOOST }
+            .sumOf { it.amount }
+        val enemyReduction = pendingNodeRewardEffects
+            .filter { it.type == PendingNodeRewardEffectType.ENEMY_REDUCTION }
+            .sumOf { it.amount }
+
+        return buildList {
+            if (hpBonus > 0) add("+$hpBonus HP")
+            if (enemyReduction > 0) add("-$enemyReduction foe")
+        }.joinToString(separator = ", ")
     }
 
     companion object {
