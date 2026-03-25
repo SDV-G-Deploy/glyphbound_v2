@@ -86,7 +86,12 @@ data class GameState(
 enum class Direction { UP, DOWN, LEFT, RIGHT }
 
 object EnemyDirector {
-    fun spawnInitial(level: Level, profile: DifficultyProfile): List<Enemy> {
+    fun spawnInitial(
+        level: Level,
+        profile: DifficultyProfile,
+        nodeType: DungeonNodeType = DungeonNodeType.COMBAT,
+        theme: DungeonTheme = DungeonTheme.NEUTRAL
+    ): List<Enemy> {
         val candidates = buildList {
             for (y in 1 until level.height - 1) {
                 for (x in 1 until level.width - 1) {
@@ -99,19 +104,96 @@ object EnemyDirector {
 
         if (candidates.isEmpty()) return emptyList()
 
-        val sorted = candidates.sortedWith(compareBy<Pos> { manhattan(it, level.exit) }.thenBy { it.y }.thenBy { it.x })
-        val first = sorted.firstOrNull { manhattan(it, level.entry) >= 4 } ?: return emptyList()
-        val primaryArchetype = if ((level.seed.absoluteValue % 2L) == 0L) EnemyArchetype.STALKER else EnemyArchetype.SPITTER
-        val primary = Enemy(id = "enemy-0", pos = first, archetype = primaryArchetype)
+        val archetypes = archetypePlan(level, profile, nodeType, theme)
+        if (archetypes.isEmpty()) return emptyList()
 
-        val second = if (profile == DifficultyProfile.HARD) {
-            sorted.firstOrNull { it != first && manhattan(it, level.entry) >= 6 }
-                ?.let { Enemy(id = "enemy-1", pos = it, archetype = EnemyArchetype.BRUTE) }
-        } else {
-            null
+        val ordered = orderedCandidates(candidates, level, nodeType)
+        val spawnPool = preferredSpawnPool(
+            ordered = ordered,
+            level = level,
+            required = archetypes.size,
+            minimumDistance = minimumDistance(nodeType)
+        )
+
+        return archetypes.mapIndexedNotNull { index, archetype ->
+            spawnPool.getOrNull(index)?.let { spawnPos ->
+                Enemy(id = "enemy-$index", pos = spawnPos, archetype = archetype)
+            }
+        }
+    }
+
+    private fun archetypePlan(
+        level: Level,
+        profile: DifficultyProfile,
+        nodeType: DungeonNodeType,
+        theme: DungeonTheme
+    ): List<EnemyArchetype> {
+        if (nodeType == DungeonNodeType.TREASURE) return listOf(EnemyArchetype.STALKER)
+
+        val fallbackPrimary = if ((level.seed.absoluteValue % 2L) == 0L) EnemyArchetype.STALKER else EnemyArchetype.SPITTER
+        val primary = when (theme) {
+            DungeonTheme.EMBER -> EnemyArchetype.BRUTE
+            DungeonTheme.FLOODED -> EnemyArchetype.SPITTER
+            DungeonTheme.BASTION -> EnemyArchetype.STALKER
+            DungeonTheme.ROT -> EnemyArchetype.STALKER
+            DungeonTheme.NEUTRAL -> fallbackPrimary
         }
 
-        return listOfNotNull(primary, second)
+        val support = when (theme) {
+            DungeonTheme.EMBER -> EnemyArchetype.STALKER
+            DungeonTheme.FLOODED -> EnemyArchetype.SPITTER
+            DungeonTheme.BASTION -> EnemyArchetype.BRUTE
+            DungeonTheme.ROT -> EnemyArchetype.SPITTER
+            DungeonTheme.NEUTRAL -> EnemyArchetype.BRUTE
+        }
+
+        return if (profile == DifficultyProfile.HARD && nodeType in setOf(DungeonNodeType.COMBAT, DungeonNodeType.ELITE, DungeonNodeType.BOSS)) {
+            listOf(primary, support)
+        } else {
+            listOf(primary)
+        }
+    }
+
+    private fun orderedCandidates(candidates: List<Pos>, level: Level, nodeType: DungeonNodeType): List<Pos> {
+        val comparator = when (nodeType) {
+            DungeonNodeType.COMBAT, DungeonNodeType.ELITE, DungeonNodeType.BOSS ->
+                compareBy<Pos> { manhattan(it, level.entry) }
+                    .thenBy { manhattan(it, level.exit) }
+                    .thenBy { it.y }
+                    .thenBy { it.x }
+
+            DungeonNodeType.TREASURE, DungeonNodeType.REST ->
+                compareByDescending<Pos> { manhattan(it, level.entry) }
+                    .thenBy { it.y }
+                    .thenBy { it.x }
+
+            else ->
+                compareByDescending<Pos> { manhattan(it, level.entry) }
+                    .thenBy { it.y }
+                    .thenBy { it.x }
+        }
+        return candidates.sortedWith(comparator)
+    }
+
+    private fun preferredSpawnPool(
+        ordered: List<Pos>,
+        level: Level,
+        required: Int,
+        minimumDistance: Int
+    ): List<Pos> {
+        val strict = ordered.filter { manhattan(it, level.entry) >= minimumDistance }
+        if (strict.size >= required) return strict
+
+        val relaxed = ordered.filter { manhattan(it, level.entry) >= 3 }
+        if (relaxed.size >= required) return relaxed
+
+        return ordered
+    }
+
+    private fun minimumDistance(nodeType: DungeonNodeType): Int = when (nodeType) {
+        DungeonNodeType.TREASURE, DungeonNodeType.REST -> 6
+        DungeonNodeType.COMBAT, DungeonNodeType.ELITE, DungeonNodeType.BOSS -> 3
+        else -> 4
     }
 
     private fun manhattan(a: Pos, b: Pos): Int = kotlin.math.abs(a.x - b.x) + kotlin.math.abs(a.y - b.y)

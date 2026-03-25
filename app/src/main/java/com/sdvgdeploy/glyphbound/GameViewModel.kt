@@ -163,7 +163,12 @@ class GameViewModel : ViewModel() {
         val intro = "${node.type.displayName()} • ${node.theme.displayName()}"
         val hpAtEntry = (carryHp + nodeEntryRewards.hpBonus).coerceAtLeast(1)
 
-        val spawnedEnemies = EnemyDirector.spawnInitial(level, profile)
+        val spawnedEnemies = EnemyDirector.spawnInitial(
+            level = level,
+            profile = profile,
+            nodeType = node.type,
+            theme = node.theme
+        )
         val enemyReduction = reduceEnemiesForNodeStart(
             enemies = spawnedEnemies,
             reduction = nodeEntryRewards.enemyReduction,
@@ -257,9 +262,9 @@ class GameViewModel : ViewModel() {
     private fun toBranchChoice(node: DungeonNode): BranchChoiceUiModel {
         val label = "${node.type.displayName()} • ${node.theme.displayName()}"
         val description = when (node.type) {
-            DungeonNodeType.COMBAT -> "Fight for a reward pick"
+            DungeonNodeType.COMBAT -> "Fight for a reward pick (theme shifts enemy style)"
             DungeonNodeType.ELITE -> "Hard fight, stronger reward"
-            DungeonNodeType.TREASURE -> "Safer detour, no combat reward"
+            DungeonNodeType.TREASURE -> "Safer detour: lighter encounter pressure, no combat reward"
             DungeonNodeType.REST -> "Lower pressure recovery node"
             DungeonNodeType.BOSS -> "Final fight before exit"
             DungeonNodeType.SHRINE -> "Event node"
