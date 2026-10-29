@@ -1,4 +1,4 @@
-# Glyphbound (v0.2.7)
+# Glyphbound (v0.3.0)
 
 Android ASCII-like roguelite prototype with deterministic procedural generation and a ViewModel-driven state store.
 
@@ -7,11 +7,14 @@ Android ASCII-like roguelite prototype with deterministic procedural generation 
 - `RECOVERY_PLAN.md` — keep/rework/split strategy after the previous oversized PR.
 - `DEVELOPMENT.md` — practical working rules for JDK 17, Android SDK bootstrap, and PR/doc hygiene.
 - `RELEASING.md` — product versioning, release tags, changelog, and schema-version rules.
+- `CHANGELOG.md` — curated, player-facing changes per version.
+- `docs/DEMO_SCRIPT.md` — a 5-minute walkthrough for showing the current build.
 - `roadmap_raw_test_md_md.md` — long-form design and roadmap archive.
 
 ## Local environment prerequisites
 - **Java:** use **JDK 17** for Gradle/Android builds in this repo.
 - In this environment, the default `java` on `PATH` may point to a newer JDK (for example JDK 21), while this project is configured around Java 17 toolchains.
+- On Debian/Ubuntu runners without mise, `apt-get install -y openjdk-17-jdk-headless` and use `JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64`.
 - If Gradle fails even though JDK 17 is installed, explicitly switch before running checks:
   ```bash
   export JAVA_HOME=/root/.local/share/mise/installs/java/17.0.2
@@ -46,6 +49,20 @@ Android ASCII-like roguelite prototype with deterministic procedural generation 
    ./gradlew :app:assembleDebug
    ```
 
+## v0.3.0 highlights — complete demo run
+- **Full run loop in core (`RunDirector`, `core:rules`):** Entry → Combat/Treasure → Elite/Rest → Boss → victory,
+  or defeat on death. Phases (`EXPLORING`, `CHOOSING_REWARD`, `CHOOSING_BRANCH`, `VICTORY`, `DEFEAT`) are pure and
+  unit-tested; `GameViewModel` is now a thin adapter.
+- **Encounter variety:** Elite nodes (theme pair, 3 reward picks), enemy-free Rest nodes (campfire +3 HP up to max),
+  boss floor with a brute-led warden pack (HARD adds the theme support).
+- **Items:** Treasure clears grant an *Ember Draught* quick item (+3 HP up to max, free action, max 3 charges).
+- **Save/continue:** autosave at every node entry (`SaveCodec`, save schema v1), launch resumes the run, meta stats
+  (runs, wins, best depth) persist. Rotation no longer restarts the run.
+- **Procgen fix:** neighbouring seeds no longer collapse onto the same map, and HARD no longer always falls back to
+  the corridor map. Path validation is ~3x faster (sparse max-flow).
+- **Run-end screen:** victory/defeat summary with *Retry seed* / *Next seed*.
+- **CI:** `.github/workflows/android-debug.yml` runs tests and uploads a debug APK artifact on every branch push / PR.
+
 ## V2-6 highlights
 - **Post-combat reward momentum (vertical-slice refinement):**
   - `SALVAGE` now grants `+1 salvage` **and** a next-node scouting effect (`-1 enemy` on entry, deterministic, consumed once).
@@ -75,7 +92,7 @@ Android ASCII-like roguelite prototype with deterministic procedural generation 
 ## Modules
 - `app` — Android UI/input/render loop + `GameViewModel`
 - `core:model` — domain model, immutable state, hazard/tile definitions, glyph rendering, tuning catalog loader
-- `core:rules` — reducer + staged effect pipeline + hazard/environment rules
+- `core:rules` — reducer + staged effect pipeline + hazard/environment rules + `RunDirector` run orchestration
 - `core:procgen` — deterministic generation + path validation API
 
 ## External tuning config: edit + validate
@@ -122,6 +139,12 @@ bash scripts/bootstrap-android-env.sh && ./gradlew :app:assembleDebug
 
 For day-to-day development rules, see `DEVELOPMENT.md`.
 For product versioning and release rules, see `RELEASING.md`.
+
+## Getting a demo APK
+- **CI (no tag needed):** every push runs `Android Debug APK`; download the `glyphbound-debug-apk-<sha>` artifact
+  from the workflow run page and `adb install -r app-debug.apk`.
+- **Locally:** `./gradlew :app:assembleDebug` → `app/build/outputs/apk/debug/app-debug.apk`.
+- Start a specific seed/profile: `adb shell am start -n com.sdvgdeploy.glyphbound/.MainActivity --el seed 1 --es profile NORMAL`.
 
 ## Release lane (existing flow)
 Workflow: `.github/workflows/android-release.yml`
