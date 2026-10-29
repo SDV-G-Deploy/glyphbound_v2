@@ -18,7 +18,7 @@ class RunStateTest {
         val run = RunState.initial(77L)
 
         assertEquals("entry", run.graph.currentNodeId)
-        assertEquals(6, run.graph.nodes.size)
+        assertEquals(7, run.graph.nodes.size)
         assertEquals(setOf("path_a", "path_b"), run.graph.neighbors().map { it.id }.toSet())
         assertTrue(run.graph.nodes.any { it.type == DungeonNodeType.BOSS })
         assertTrue(run.graph.nodes.any { it.type == DungeonNodeType.EXIT })
@@ -49,10 +49,10 @@ class RunStateTest {
 
     @Test
     fun saveGame_defaultsToSchemaVersionOne() {
-        val save = SaveGame(activeRun = RunState.initial(99L))
+        val save = SaveGame(activeRun = RunCheckpoint(RunState.initial(99L), DifficultyProfile.NORMAL, carryHp = 10))
 
         assertEquals(SAVE_SCHEMA_VERSION, save.schemaVersion)
-        assertEquals("run-99", save.activeRun?.runId)
+        assertEquals("run-99", save.activeRun?.run?.runId)
         assertTrue("SCAVENGER" in save.meta.unlockedArchetypes)
     }
 
@@ -95,5 +95,56 @@ class RunStateTest {
         assertEquals(1, consumed.hpBonus)
         assertTrue(consumed.updatedRun.pendingNodeRewardEffects.isEmpty())
         assertEquals("+1 HP, -1 foe", consumed.summary())
+    }
+
+    @Test
+    fun depthOne_nodesBothLeadToEliteOrRest_andConvergeOnBoss() {
+        val run = RunState.initial(77L)
+
+        assertEquals(setOf("elite", "rest"), run.graph.neighbors("path_a").map { it.id }.toSet())
+        assertEquals(setOf("elite", "rest"), run.graph.neighbors("path_b").map { it.id }.toSet())
+        assertEquals(listOf("boss"), run.graph.neighbors("elite").map { it.id })
+        assertEquals(listOf("boss"), run.graph.neighbors("rest").map { it.id })
+        assertEquals(DungeonNodeType.ELITE, run.graph.nodes.first { it.id == "elite" }.type)
+    }
+
+    @Test
+    fun rewardChoices_eliteOffersAllThree_bossAndRestOfferNone() {
+        val base = RunState.initial(77L).completeCurrent()
+
+        assertEquals(3, base.advanceTo("elite").rewardChoicesForCurrent().map { it.type }.toSet().size)
+        assertTrue(base.advanceTo("boss").rewardChoicesForCurrent().isEmpty())
+        assertTrue(base.advanceTo("rest").rewardChoicesForCurrent().isEmpty())
+    }
+
+    @Test
+    fun quickItems_stackWithCapAndConsume() {
+        var inv = InventoryState()
+        assertEquals(null, inv.consumeQuickItem(ItemType.DRAUGHT))
+
+        repeat(5) { inv = inv.addQuickItem(ItemType.DRAUGHT) }
+        assertEquals(MAX_QUICK_ITEM_CHARGES, inv.charges(ItemType.DRAUGHT))
+
+        val used = inv.consumeQuickItem(ItemType.DRAUGHT)!!
+        assertEquals(MAX_QUICK_ITEM_CHARGES - 1, used.charges(ItemType.DRAUGHT))
+        assertEquals(1, used.quickSlots.size)
+    }
+
+    @Test
+    fun meta_recordsVictoryDefeatDepthAndThemes() {
+        val run = RunState.initial(77L)
+            .completeCurrent().advanceTo("path_a")
+            .completeCurrent().advanceTo("rest")
+            .completeCurrent().advanceTo("boss")
+
+        val afterLoss = MetaProgressionState().recordRun(run, RunOutcome.DEFEAT)
+        assertEquals(1, afterLoss.totalRuns)
+        assertEquals(0, afterLoss.completedRuns)
+        assertEquals(3, afterLoss.highestDepth)
+
+        val afterWin = afterLoss.recordRun(run.completeCurrent(), RunOutcome.VICTORY)
+        assertEquals(2, afterWin.totalRuns)
+        assertEquals(1, afterWin.completedRuns)
+        assertTrue(run.graph.nodes.first { it.id == "path_a" }.theme in afterWin.unlockedThemes)
     }
 }

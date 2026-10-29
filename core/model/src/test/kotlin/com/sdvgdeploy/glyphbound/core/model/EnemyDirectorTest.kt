@@ -65,6 +65,22 @@ class EnemyDirectorTest {
         assertEquals(listOf(EnemyArchetype.BRUTE, EnemyArchetype.STALKER), hardEmberCombat.map { it.archetype })
     }
 
+    @Test
+    fun restNode_isEnemyFree_eliteAndBossEscalate() {
+        val level = openLevel(seed = 42L, width = 16, height = 10)
+
+        fun spawn(type: DungeonNodeType, profile: DifficultyProfile = DifficultyProfile.NORMAL) =
+            EnemyDirector.spawnInitial(level, profile, type, DungeonTheme.FLOODED)
+
+        assertTrue(spawn(DungeonNodeType.REST).isEmpty())
+        assertEquals(1, spawn(DungeonNodeType.COMBAT).size)
+        assertEquals(2, spawn(DungeonNodeType.ELITE).size)
+        assertEquals(2, spawn(DungeonNodeType.BOSS, DifficultyProfile.EASY).size)
+        assertEquals(2, spawn(DungeonNodeType.BOSS).size)
+        assertEquals(3, spawn(DungeonNodeType.BOSS, DifficultyProfile.HARD).size)
+        assertEquals(EnemyArchetype.BRUTE, spawn(DungeonNodeType.BOSS).first().archetype)
+    }
+
     private fun openLevel(seed: Long, width: Int = 12, height: Int = 8): Level {
         val tiles = MutableList(height) { y ->
             MutableList(width) { x ->

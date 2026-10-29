@@ -129,6 +129,7 @@ object EnemyDirector {
         theme: DungeonTheme
     ): List<EnemyArchetype> {
         if (nodeType == DungeonNodeType.TREASURE) return listOf(EnemyArchetype.STALKER)
+        if (nodeType == DungeonNodeType.REST) return emptyList()
 
         val fallbackPrimary = if ((level.seed.absoluteValue % 2L) == 0L) EnemyArchetype.STALKER else EnemyArchetype.SPITTER
         val primary = when (theme) {
@@ -147,10 +148,14 @@ object EnemyDirector {
             DungeonTheme.NEUTRAL -> EnemyArchetype.BRUTE
         }
 
-        return if (profile == DifficultyProfile.HARD && nodeType in setOf(DungeonNodeType.COMBAT, DungeonNodeType.ELITE, DungeonNodeType.BOSS)) {
-            listOf(primary, support)
-        } else {
-            listOf(primary)
+        val hard = profile == DifficultyProfile.HARD
+        return when (nodeType) {
+            // Elite: always a primary + support pair, regardless of profile.
+            DungeonNodeType.ELITE -> listOf(primary, support)
+            // Boss: brute warden anchor plus the theme primary; HARD adds the theme support.
+            DungeonNodeType.BOSS -> if (hard) listOf(EnemyArchetype.BRUTE, primary, support) else listOf(EnemyArchetype.BRUTE, primary)
+            DungeonNodeType.COMBAT -> if (hard) listOf(primary, support) else listOf(primary)
+            else -> listOf(primary)
         }
     }
 
