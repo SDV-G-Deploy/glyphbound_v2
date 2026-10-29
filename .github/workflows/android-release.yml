@@ -28,6 +28,9 @@ jobs:
           cache: gradle
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # Default 'tools' package no longer exists in cmdline-tools 16+; match compileSdk 34 / AGP 8.5 build-tools.
+          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
       - name: Run tests
         run: ./gradlew test
 

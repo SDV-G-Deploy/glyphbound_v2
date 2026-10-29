@@ -100,11 +100,39 @@ data class ItemStack(
     val charges: Int = 1
 )
 
+/** Consumable items that can live in quick slots. */
+enum class ItemType(val itemId: String, val label: String, val description: String) {
+    DRAUGHT("draught", "Ember Draught", "Drink to recover +3 HP");
+
+    companion object {
+        fun fromId(itemId: String): ItemType? = entries.firstOrNull { it.itemId == itemId }
+    }
+}
+
+const val DRAUGHT_HEAL: Int = 3
+const val MAX_QUICK_ITEM_CHARGES: Int = 3
+
 data class InventoryState(
     val equipped: List<ItemStack> = emptyList(),
     val backpack: List<ItemStack> = emptyList(),
     val quickSlots: List<ItemStack> = emptyList()
-)
+) {
+    fun charges(item: ItemType): Int = quickSlots.filter { it.itemId == item.itemId }.sumOf { it.charges }
+
+    /** Adds charges to the quick slot of [item], capped at [MAX_QUICK_ITEM_CHARGES]. */
+    fun addQuickItem(item: ItemType, amount: Int = 1): InventoryState {
+        val total = (charges(item) + amount).coerceIn(0, MAX_QUICK_ITEM_CHARGES)
+        val others = quickSlots.filterNot { it.itemId == item.itemId }
+        return copy(quickSlots = if (total > 0) others + ItemStack(item.itemId, total) else others)
+    }
+
+    /** Returns null when no charge of [item] is available. */
+    fun consumeQuickItem(item: ItemType): InventoryState? {
+        val current = charges(item)
+        if (current <= 0) return null
+        return addQuickItem(item, -1)
+    }
+}
 
 data class PlayerProgressionState(
     val level: Int = 1,
@@ -128,7 +156,8 @@ data class RunState(
 
     fun rewardChoicesForCurrent(): List<RewardChoice> {
         val node = currentNode()
-        if (node.type !in setOf(DungeonNodeType.COMBAT, DungeonNodeType.ELITE, DungeonNodeType.BOSS)) return emptyList()
+        // Boss clears end the run, so only COMBAT (2 picks) and ELITE (3 picks) offer rewards.
+        if (node.type !in setOf(DungeonNodeType.COMBAT, DungeonNodeType.ELITE)) return emptyList()
 
         val catalog = listOf(
             RewardChoice(
@@ -149,7 +178,8 @@ data class RunState(
         )
 
         val offset = ((baseSeed xor currentNode().floorSeed).absoluteValue % catalog.size).toInt()
-        return List(2) { index -> catalog[(offset + index) % catalog.size] }
+        val count = if (node.type == DungeonNodeType.COMBAT) 2 else catalog.size
+        return List(count) { index -> catalog[(offset + index) % catalog.size] }
             .distinctBy { it.type }
     }
 
@@ -246,6 +276,7 @@ data class RunState(
                 DungeonNode(id = "entry", depth = 0, type = DungeonNodeType.ENTRY, theme = DungeonTheme.NEUTRAL, floorSeed = floorSeed(baseSeed, 0), discovered = true),
                 DungeonNode(id = "path_a", depth = 1, type = DungeonNodeType.COMBAT, theme = midTheme, floorSeed = floorSeed(baseSeed, 1)),
                 DungeonNode(id = "path_b", depth = 1, type = DungeonNodeType.TREASURE, theme = sideTheme, floorSeed = floorSeed(baseSeed, 2)),
+                DungeonNode(id = "elite", depth = 2, type = DungeonNodeType.ELITE, theme = sideTheme, floorSeed = floorSeed(baseSeed, 6)),
                 DungeonNode(id = "rest", depth = 2, type = DungeonNodeType.REST, theme = DungeonTheme.NEUTRAL, floorSeed = floorSeed(baseSeed, 3)),
                 DungeonNode(id = "boss", depth = 3, type = DungeonNodeType.BOSS, theme = midTheme, floorSeed = floorSeed(baseSeed, 4)),
                 DungeonNode(id = "exit", depth = 4, type = DungeonNodeType.EXIT, theme = DungeonTheme.NEUTRAL, floorSeed = floorSeed(baseSeed, 5))
@@ -253,8 +284,9 @@ data class RunState(
 
             val edges = mapOf(
                 "entry" to listOf("path_a", "path_b"),
-                "path_a" to listOf("rest"),
-                "path_b" to listOf("rest"),
+                "path_a" to listOf("elite", "rest"),
+                "path_b" to listOf("elite", "rest"),
+                "elite" to listOf("boss"),
                 "rest" to listOf("boss"),
                 "boss" to listOf("exit"),
                 "exit" to emptyList()
@@ -272,15 +304,41 @@ data class RunState(
     }
 }
 
+enum class RunOutcome { VICTORY, DEFEAT }
+
 data class MetaProgressionState(
     val unlockedArchetypes: Set<String> = setOf("SCAVENGER"),
     val unlockedThemes: Set<DungeonTheme> = setOf(DungeonTheme.NEUTRAL),
     val completedRuns: Int = 0,
-    val highestDepth: Int = 0
+    val highestDepth: Int = 0,
+    val totalRuns: Int = 0
+) {
+    /** Records a finished run. Themes seen on cleared nodes are unlocked for display/meta purposes. */
+    fun recordRun(run: RunState, outcome: RunOutcome): MetaProgressionState {
+        val reachedDepth = run.graph.nodes.filter { it.id in run.visitedNodeIds }.maxOfOrNull { it.depth } ?: 0
+        val clearedThemes = run.graph.nodes.filter { it.id in run.completedNodeIds }.map { it.theme }
+        return copy(
+            totalRuns = totalRuns + 1,
+            completedRuns = completedRuns + if (outcome == RunOutcome.VICTORY) 1 else 0,
+            highestDepth = maxOf(highestDepth, reachedDepth),
+            unlockedThemes = unlockedThemes + clearedThemes
+        )
+    }
+}
+
+/**
+ * Node-entry checkpoint: the run *before* pending entry effects are consumed, plus the HP carried in.
+ * Re-entering the node from this checkpoint is fully deterministic, which is what makes it a safe save point.
+ */
+data class RunCheckpoint(
+    val run: RunState,
+    val profile: DifficultyProfile,
+    val carryHp: Int,
+    val totalMoves: Int = 0
 )
 
 data class SaveGame(
     val schemaVersion: Int = SAVE_SCHEMA_VERSION,
-    val activeRun: RunState? = null,
+    val activeRun: RunCheckpoint? = null,
     val meta: MetaProgressionState = MetaProgressionState()
 )

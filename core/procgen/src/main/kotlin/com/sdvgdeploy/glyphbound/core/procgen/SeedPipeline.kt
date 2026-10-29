@@ -25,10 +25,23 @@ object LevelGenerator {
 
     fun generate(seed: Long, config: Config = Config()): Level {
         repeat(config.maxAttempts) { attempt ->
-            val level = build(seed + attempt, config)
+            val level = build(attemptSeed(seed, attempt), config)
             if (PathValidator.validate(level, config.validator).isValid) return level
         }
         return buildCorridorFallback(seed, config)
+    }
+
+    /**
+     * Retry seeds must not overlap between neighbouring base seeds. The previous `seed + attempt`
+     * scheme made seeds N, N+1, ... converge on the same first-valid map. Attempt 0 keeps the raw
+     * seed; later attempts use a SplitMix64-style mix of (seed, attempt).
+     */
+    fun attemptSeed(seed: Long, attempt: Int): Long {
+        if (attempt == 0) return seed
+        var z = seed + attempt.toLong() * -0x61c8864680b583ebL
+        z = (z xor (z ushr 30)) * -0x40a7b892e31b1a47L
+        z = (z xor (z ushr 27)) * -0x6b2fb644ecceee15L
+        return z xor (z ushr 31)
     }
 
     private fun build(seed: Long, config: Config): Level {
@@ -48,10 +61,20 @@ object LevelGenerator {
 
         val entry = Pos(1, 1)
         val exit = Pos(config.width - 2, config.height - 2)
+        // Keep the 2x2 pocket around S and E open: those corners are the main bottleneck for the
+        // two-disjoint-paths policy (HARD previously never passed and always used the fallback).
+        clearPocket(tiles, entry, dx = 1, dy = 1)
+        clearPocket(tiles, exit, dx = -1, dy = -1)
         tiles[entry.y][entry.x] = Tile.ENTRY
         tiles[exit.y][exit.x] = Tile.EXIT
 
         return Level(config.width, config.height, seed, tiles, entry, exit)
+    }
+
+    private fun clearPocket(tiles: MutableList<MutableList<Tile>>, corner: Pos, dx: Int, dy: Int) {
+        listOf(Pos(corner.x + dx, corner.y), Pos(corner.x, corner.y + dy), Pos(corner.x + dx, corner.y + dy)).forEach { p ->
+            if (tiles[p.y][p.x] == Tile.WALL) tiles[p.y][p.x] = Tile.FLOOR
+        }
     }
 
     private fun rollEnvironment(rng: Random, config: Config): Tile {

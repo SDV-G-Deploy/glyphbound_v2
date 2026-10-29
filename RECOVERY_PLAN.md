@@ -196,11 +196,14 @@ Refine the existing vertical slice instead of widening it:
 4. improve wording/UX of reward and branch choices,
 5. tighten the relationship between enemy roles and hazards.
 
+Status (v0.3.0): items 1–3 are addressed. The run is a complete loop (`RunDirector`), branches have distinct
+consequences (Elite/Rest/Treasure), and reward carry-over is shown in the HUD and the entry log.
+
 ### 5.2 Explicitly *not* next
 These should wait until the current slice feels coherent:
-- large inventory expansion,
-- save/load implementation,
-- meta progression,
+- large inventory expansion (v0.3.0 added exactly one consumable, intentionally),
+- save/load beyond the minimal node-entry checkpoint + meta counters added in v0.3.0,
+- meta progression that changes gameplay (unlocks are recorded but not yet consumed),
 - many new archetypes,
 - many new dungeon node types,
 - large procgen overhaul.

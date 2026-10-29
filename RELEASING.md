@@ -25,9 +25,15 @@ Examples:
 - Do **not** bump this for normal gameplay balancing if the file format and parser contract stay compatible.
 - Bump it only when the config schema changes in a way that requires parser/migration handling.
 
-### 1.4 Future save schema version
-- Suspend/resume save compatibility must use a separate save schema version when active-run/meta saves are introduced.
+### 1.4 Save schema version
+- Source of truth: `core/model/.../RunState.kt` → `SAVE_SCHEMA_VERSION` (currently **1**, introduced in 0.3.0).
+- Codec: `core/model/.../SaveCodec.kt`. The app stores one file, `filesDir/glyphbound-save.json`.
 - This version must stay independent from both product version and `configVersion`.
+- Bump it whenever the persisted JSON shape changes incompatibly (renamed/removed fields, changed meaning).
+  Adding an optional field with a default does not require a bump.
+- On bump: add a migration step in `SaveCodec.migrate` from every older supported version, add a fixture test
+  that decodes an old-version JSON, and note the change in `CHANGELOG.md`.
+- Saves newer than the app's schema are rejected (`UnsupportedVersion`) and ignored by the app, never partially loaded.
 
 ## 2. Release triggers
 
@@ -73,11 +79,15 @@ Before pushing a release tag:
 3. confirm `README.md` headline/version-specific highlights reflect the same product version;
 4. confirm any schema changes are documented:
    - `configVersion` for tuning schema,
-   - save schema version once save/load exists;
+   - `SAVE_SCHEMA_VERSION` for save format;
 5. run the relevant checks;
 6. create and push tag `v<versionName>`.
 
 ## 5. Changelog rules
+
+`CHANGELOG.md` holds curated, player-facing notes per version (add an entry with every version bump; mark it
+"unreleased" until the tag is pushed).
+
 
 Auto changelog generation currently comes from `scripts/generate_changelog.sh`, which formats git commit subjects.
 

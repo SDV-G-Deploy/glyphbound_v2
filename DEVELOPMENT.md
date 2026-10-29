@@ -24,6 +24,16 @@ java -version
 ./gradlew -version
 ```
 
+Without mise (plain Debian/Ubuntu runner):
+
+```bash
+apt-get install -y openjdk-17-jdk-headless
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+```
+
+If Maven Central answers `429 Too Many Requests` on a cold Gradle cache, just re-run the build: the cache
+fills incrementally (`--max-workers=1` reduces parallel downloads).
+
 ---
 
 ## 2. Android SDK bootstrap rule
@@ -82,6 +92,12 @@ The repo already contains:
 - progression summary.
 
 These are useful, but still early-stage. Extend them carefully and validate each step with tests and UI checks.
+
+### 4.4 Run flow lives in core
+Since v0.3.0 the run state machine is `RunDirector` / `RunSession` in `core:rules`. Put gameplay rules there
+(with unit tests), not in `GameViewModel`. The ViewModel only maps `RunSession` to UI state and handles
+persistence. `RunBot` (a test helper) plays whole runs deterministically. Use it to check balance changes, and
+keep the demo seeds in `RunDirectorTest.demoSeeds_areClearableByTheBot` winnable.
 
 ---
 
