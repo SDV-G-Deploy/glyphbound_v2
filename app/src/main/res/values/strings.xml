@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">Glyphbound</string>
+    <string name="retry_seed">Retry seed</string>
+    <string name="next_seed">Next seed</string>
+    <string name="draught_none">Draught\n×0</string>
+    <string name="draught_count">Draught\n×%1$d</string>
 </resources>

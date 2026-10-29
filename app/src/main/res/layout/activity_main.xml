@@ -61,6 +61,54 @@
             android:layout_marginStart="8dp"
             android:visibility="gone"
             android:text="Reward B" />
+
+        <Button
+            android:id="@+id/rewardCButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:visibility="gone"
+            android:text="Reward C" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/endRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:paddingTop="4dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/summaryText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/retryButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/retry_seed" />
+
+            <Button
+                android:id="@+id/nextSeedButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:text="@string/next_seed" />
+        </LinearLayout>
     </LinearLayout>
 
     <LinearLayout
@@ -109,13 +157,32 @@
         android:gravity="center"
         android:orientation="vertical">
 
-        <Button
-            android:id="@+id/upButton"
-            android:layout_width="84dp"
-            android:layout_height="56dp"
-            android:minHeight="56dp"
-            android:text="↑"
-            android:textSize="22sp" />
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/draughtButton"
+                android:layout_width="84dp"
+                android:layout_height="56dp"
+                android:minHeight="56dp"
+                android:enabled="false"
+                android:text="@string/draught_none"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/upButton"
+                android:layout_width="84dp"
+                android:layout_height="56dp"
+                android:minHeight="56dp"
+                android:text="↑"
+                android:textSize="22sp" />
+
+            <Space
+                android:layout_width="84dp"
+                android:layout_height="56dp" />
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="wrap_content"

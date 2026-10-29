@@ -25,6 +25,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var profileButton: Button
     private lateinit var rewardAButton: Button
     private lateinit var rewardBButton: Button
+    private lateinit var rewardCButton: Button
+    private lateinit var draughtButton: Button
+    private lateinit var endRow: android.view.View
+    private lateinit var summaryText: TextView
     private lateinit var branchAButton: Button
     private lateinit var branchBButton: Button
 
@@ -42,10 +46,15 @@ class MainActivity : AppCompatActivity() {
         profileButton = findViewById(R.id.profileButton)
         rewardAButton = findViewById(R.id.rewardAButton)
         rewardBButton = findViewById(R.id.rewardBButton)
+        rewardCButton = findViewById(R.id.rewardCButton)
+        draughtButton = findViewById(R.id.draughtButton)
+        endRow = findViewById(R.id.endRow)
+        summaryText = findViewById(R.id.summaryText)
         branchAButton = findViewById(R.id.branchAButton)
         branchBButton = findViewById(R.id.branchBButton)
 
-        val baseSeed = intent?.getLongExtra("seed", 1337L) ?: 1337L
+        val hasExplicitSeed = intent?.hasExtra("seed") == true
+        val baseSeed = intent?.getLongExtra("seed", GameViewModel.DEFAULT_SEED) ?: GameViewModel.DEFAULT_SEED
         val profile = DifficultyProfile.fromRaw(intent?.getStringExtra("profile"))
 
         findViewById<Button>(R.id.upButton).setOnClickListener { viewModel.dispatch(GameIntent.Move(Direction.UP)) }
@@ -60,6 +69,10 @@ class MainActivity : AppCompatActivity() {
         profileButton.setOnClickListener { viewModel.dispatch(GameIntent.CycleProfile) }
         rewardAButton.setOnClickListener { chooseReward(0) }
         rewardBButton.setOnClickListener { chooseReward(1) }
+        rewardCButton.setOnClickListener { chooseReward(2) }
+        draughtButton.setOnClickListener { viewModel.dispatch(GameIntent.UseDraught) }
+        findViewById<Button>(R.id.retryButton).setOnClickListener { viewModel.dispatch(GameIntent.Restart) }
+        findViewById<Button>(R.id.nextSeedButton).setOnClickListener { viewModel.dispatch(GameIntent.NextSeed) }
         branchAButton.setOnClickListener { chooseBranch(0) }
         branchBButton.setOnClickListener { chooseBranch(1) }
         mapView.setOnTouchListener { _, event -> handleSwipe(event) }
@@ -89,12 +102,23 @@ class MainActivity : AppCompatActivity() {
                     messageText.text = ui.messageLog.lastOrNull() ?: "Move"
                     bindRewardButtons(ui.rewardChoices)
                     bindBranchButtons(ui.branchChoices)
+                    draughtButton.text = getString(R.string.draught_count, ui.draughts)
+                    draughtButton.isEnabled = ui.canUseDraught
+                    endRow.visibility = if (ui.runOver) android.view.View.VISIBLE else android.view.View.GONE
+                    summaryText.text = ui.runSummary.orEmpty()
                     mapView.render(buffer = ui.map, highContrast = ui.highContrast)
                 }
             }
         }
 
-        viewModel.dispatch(GameIntent.Start(seed = baseSeed, profile = profile))
+        // Only boot once per Activity instance chain: rotation must not reset the run.
+        if (savedInstanceState == null) {
+            if (hasExplicitSeed) {
+                viewModel.dispatch(GameIntent.Start(seed = baseSeed, profile = profile))
+            } else {
+                viewModel.dispatch(GameIntent.ContinueOrStart(seed = baseSeed, profile = profile))
+            }
+        }
     }
 
     private fun bindBranchButtons(branchChoices: List<BranchChoiceUiModel>) {
@@ -112,7 +136,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun bindRewardButtons(rewardChoices: List<RewardChoiceUiModel>) {
-        val buttons = listOf(rewardAButton, rewardBButton)
+        val buttons = listOf(rewardAButton, rewardBButton, rewardCButton)
         buttons.forEachIndexed { index, button ->
             val choice = rewardChoices.getOrNull(index)
             if (choice == null) {
@@ -126,7 +150,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun chooseReward(index: Int) {
-        val button = if (index == 0) rewardAButton else rewardBButton
+        val button = listOf(rewardAButton, rewardBButton, rewardCButton)[index]
         val rewardType = button.tag as? com.sdvgdeploy.glyphbound.core.model.RewardType ?: return
         viewModel.dispatch(GameIntent.ChooseReward(rewardType))
     }
