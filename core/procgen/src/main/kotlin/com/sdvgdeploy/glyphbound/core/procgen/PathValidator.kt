@@ -66,29 +66,24 @@ object PathValidator {
         return false
     }
 
+    // Matches the previous dense implementation, which stopped counting at 2 paths.
+    private const val FLOW_LIMIT = 2
+
     private fun maxEdgeDisjointPaths(level: Level): Int {
         val nodes = walkableNodes(level)
         val index = nodes.withIndex().associate { it.value to it.index }
-        val n = nodes.size
-        val cap = Array(n) { IntArray(n) }
-
+        val graph = FlowGraph(nodes.size)
         for (p in nodes) {
             val i = index.getValue(p)
-            for (nPos in neighbors(level, p)) {
-                val j = index.getValue(nPos)
-                cap[i][j] = 1
-            }
+            for (nPos in neighbors(level, p)) graph.addEdge(i, index.getValue(nPos), 1)
         }
-
-        return maxFlow(cap, index.getValue(level.entry), index.getValue(level.exit))
+        return graph.maxFlow(index.getValue(level.entry), index.getValue(level.exit), FLOW_LIMIT)
     }
 
     private fun maxNodeDisjointPaths(level: Level): Int {
         val nodes = walkableNodes(level)
         val index = nodes.withIndex().associate { it.value to it.index }
-        val n = nodes.size
-        val size = n * 2
-        val cap = Array(size) { IntArray(size) }
+        val graph = FlowGraph(nodes.size * 2)
 
         fun inId(i: Int) = i * 2
         fun outId(i: Int) = i * 2 + 1
@@ -99,66 +94,88 @@ object PathValidator {
         for (p in nodes) {
             val i = index.getValue(p)
             val internalCapacity = if (i == startIdx || i == endIdx) 2 else 1
-            cap[inId(i)][outId(i)] = internalCapacity
+            graph.addEdge(inId(i), outId(i), internalCapacity)
+            for (nPos in neighbors(level, p)) graph.addEdge(outId(i), inId(index.getValue(nPos)), 1)
         }
 
-        for (p in nodes) {
-            val i = index.getValue(p)
-            for (nPos in neighbors(level, p)) {
-                val j = index.getValue(nPos)
-                cap[outId(i)][inId(j)] = 1
-            }
-        }
-
-        return maxFlow(cap, outId(startIdx), inId(endIdx))
+        return graph.maxFlow(outId(startIdx), inId(endIdx), FLOW_LIMIT)
     }
 
-    private fun maxFlow(capacity: Array<IntArray>, source: Int, sink: Int): Int {
-        val residual = capacity.map { it.clone() }.toTypedArray()
-        val parent = IntArray(residual.size)
-        var flow = 0
+    /**
+     * Sparse residual graph for Edmonds-Karp. Every walkable tile has at most 4 neighbours, so the
+     * previous dense V x V matrices (and O(V^2) BFS) were wasted work on every generation attempt.
+     */
+    private class FlowGraph(size: Int) {
+        private val heads = IntArray(size) { -1 }
+        private var to = IntArray(64)
+        private var cap = IntArray(64)
+        private var next = IntArray(64)
+        private var edgeCount = 0
 
-        while (bfs(residual, source, sink, parent)) {
-            var bottleneck = Int.MAX_VALUE
-            var v = sink
-            while (v != source) {
-                val u = parent[v]
-                bottleneck = minOf(bottleneck, residual[u][v])
-                v = u
-            }
-
-            v = sink
-            while (v != source) {
-                val u = parent[v]
-                residual[u][v] -= bottleneck
-                residual[v][u] += bottleneck
-                v = u
-            }
-
-            flow += bottleneck
-            if (flow >= 2) return flow
+        fun addEdge(u: Int, v: Int, c: Int) {
+            push(u, v, c)
+            push(v, u, 0)
         }
 
-        return flow
-    }
+        private fun push(u: Int, v: Int, c: Int) {
+            if (edgeCount == to.size) {
+                to = to.copyOf(edgeCount * 2)
+                cap = cap.copyOf(edgeCount * 2)
+                next = next.copyOf(edgeCount * 2)
+            }
+            to[edgeCount] = v
+            cap[edgeCount] = c
+            next[edgeCount] = heads[u]
+            heads[u] = edgeCount
+            edgeCount++
+        }
 
-    private fun bfs(residual: Array<IntArray>, source: Int, sink: Int, parent: IntArray): Boolean {
-        parent.fill(-1)
-        parent[source] = source
-        val q = ArrayDeque<Int>()
-        q += source
-
-        while (q.isNotEmpty()) {
-            val u = q.removeFirst()
-            for (v in residual.indices) {
-                if (parent[v] == -1 && residual[u][v] > 0) {
-                    parent[v] = u
-                    if (v == sink) return true
-                    q += v
+        /** Edge e and its reverse are stored at e and e xor 1. Stops once [limit] flow is found. */
+        fun maxFlow(source: Int, sink: Int, limit: Int): Int {
+            var flow = 0
+            val parentEdge = IntArray(heads.size)
+            val queue = IntArray(heads.size)
+            while (flow < limit) {
+                parentEdge.fill(-1)
+                var qHead = 0
+                var qTail = 0
+                queue[qTail++] = source
+                var found = false
+                while (qHead < qTail && !found) {
+                    val u = queue[qHead++]
+                    var e = heads[u]
+                    while (e != -1) {
+                        val v = to[e]
+                        if (cap[e] > 0 && v != source && parentEdge[v] == -1) {
+                            parentEdge[v] = e
+                            if (v == sink) {
+                                found = true
+                                break
+                            }
+                            queue[qTail++] = v
+                        }
+                        e = next[e]
+                    }
                 }
-            }
-        }
+                if (!found) break
 
-        return false
+                var bottleneck = Int.MAX_VALUE
+                var v = sink
+                while (v != source) {
+                    val e = parentEdge[v]
+                    bottleneck = minOf(bottleneck, cap[e])
+                    v = to[e xor 1]
+                }
+                v = sink
+                while (v != source) {
+                    val e = parentEdge[v]
+                    cap[e] -= bottleneck
+                    cap[e xor 1] += bottleneck
+                    v = to[e xor 1]
+                }
+                flow += bottleneck
+            }
+            return flow
+        }
     }
 }

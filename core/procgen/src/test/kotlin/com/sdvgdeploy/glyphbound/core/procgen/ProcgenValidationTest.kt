@@ -59,6 +59,24 @@ class ProcgenValidationTest {
     }
 
     @Test
+    fun neighbouringSeeds_produceDistinctMaps() {
+        DifficultyProfile.entries.forEach { profile ->
+            val distinct = (1L..40L).map { seed ->
+                LevelGenerator.generate(seed, profile).tiles.map { row -> row.map { it.glyph } }
+            }.toSet().size
+            assertEquals(40, distinct, "seeds 1..40 must not collapse onto shared retry seeds for $profile")
+        }
+    }
+
+    @Test
+    fun attemptSeed_keepsAttemptZeroAndSpreadsRetries() {
+        assertEquals(99L, LevelGenerator.attemptSeed(99L, 0))
+        val retries = (1..50).map { LevelGenerator.attemptSeed(99L, it) }.toSet()
+        assertEquals(50, retries.size)
+        assertTrue(retries.intersect((1..50).map { LevelGenerator.attemptSeed(100L, it) }.toSet()).isEmpty())
+    }
+
+    @Test
     fun seedMix_includesProfileAndConfigVersion() {
         val seed = 123L
         val easy = LevelGenerator.seedWithProfile(seed, DifficultyProfile.EASY)
